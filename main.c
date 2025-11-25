@@ -45,8 +45,8 @@
 #define KNOB_NORMAL   CLITERAL (Color) { 255, 138, 50, 255 }
 #define KNOB_DRAGGING CLITERAL (Color) { 225, 138, 50, 255 }
 
-#if defined(PLATFORM_WEB)
-    #include <emscripten/emscripten.h>
+#ifdef PLATFORM_WEB
+#include <emscripten/emscripten.h>
 #endif
 
 void UpdateDrawFrame(void);
@@ -148,7 +148,7 @@ void hydrogen_matrix_compute_min_and_max_values(HydrogenMatrix *a, double min_va
 void hydrogen_matrix_multiplication(HydrogenMatrix *a, HydrogenMatrix *b, HydrogenMatrix *c)
 {
     if (a->items[0].count != b->count) {
-        TraceLog(LOG_ERROR, "ERROR: columns of matrix `a` should be the samne as rows of matrix `b`. You passed %zu and %zu respectively\n", a[0].count, b->count);
+        TraceLog(LOG_FATAL, "columns of matrix `a` should be the samne as rows of matrix `b`. You passed %zu and %zu respectively", a[0].count, b->count);
         exit(1);
     }
 
@@ -172,7 +172,7 @@ void hydrogen_matrix_multiplication(HydrogenMatrix *a, HydrogenMatrix *b, Hydrog
 void hydrogen_matrix_likewise_multiplication(HydrogenMatrix *a, HydrogenMatrix *b, HydrogenMatrix *c)
 {
     if (a->items[0].count != b->items[0].count || a->count != b->count) {
-        TraceLog(LOG_ERROR, "ERROR: matrices must have the same shape. [Matrix A]: %zux%zu, [Matrix B]: %zux%zu\n", a->count, a->items[0].count, b->count, b->items[0].count);
+        TraceLog(LOG_FATAL, "matrices must have the same shape. [Matrix A]: %zux%zu, [Matrix B]: %zux%zu", a->count, a->items[0].count, b->count, b->items[0].count);
         exit(1);
     }
 
@@ -689,6 +689,9 @@ bool show_axis          = true;
 
 int main(void)
 {
+#ifdef WEB_RELEASE
+    SetTraceLogLevel(LOG_FATAL);
+#endif
     Clay_Raylib_Initialize((int)SCREEN_WIDTH, (int)SCREEN_HEIGHT, "Hydrogen Atom Visualizer", FLAG_BORDERLESS_WINDOWED_MODE | FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE);
 
     uint64_t totalMemorySize = Clay_MinMemorySize();
@@ -733,7 +736,7 @@ int main(void)
     material.maps[MATERIAL_MAP_EMISSION].color = WHITE;
     material.maps[MATERIAL_MAP_EMISSION].value = 1.0f;
 
-#if defined(PLATFORM_WEB)
+#ifdef PLATFORM_WEB
     emscripten_set_main_loop(UpdateDrawFrame, 0, true);
 #else
     while (!WindowShouldClose()) {
@@ -741,9 +744,6 @@ int main(void)
     }
 #endif
 
-#ifdef PLATFORM_WEB
-    TraceLog(LOG_INFO, "unloading mesh %p\n", &orbital_mesh);
-#endif
     UnloadMesh(orbital_mesh);
     UnloadMaterial(material);
     CloseWindow();
@@ -800,7 +800,13 @@ void UpdateDrawFrame(void)
     if (needs_regeneration) {
         if (has_mesh) {
 #ifdef PLATFORM_WEB
-            TraceLog(LOG_INFO, "unloading mesh %p\n", &orbital_mesh);
+#ifdef WEB_RELEASE
+            SetTraceLogLevel(LOG_WARNING);
+#endif
+            TraceLog(LOG_INFO, "unloading mesh %p", &orbital_mesh);
+#ifdef WEB_RELEASE
+            SetTraceLogLevel(LOG_FATAL);
+#endif
 #endif
             UnloadMesh(orbital_mesh);
         }
