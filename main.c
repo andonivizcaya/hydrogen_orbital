@@ -1,21 +1,38 @@
+// VERSION: 0.01
+
+/*
+    NOTE: this is not the final code.
+    There are a lot of implicit TODOs and the author is not in the mood of providing them.
+    Further versions are going to be released.
+    Working on them.
+    Don't be ass.
+*/
+
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <math.h>
 #include <string.h>
+#include <limits.h>
+#include <math.h>
 #include "hydrogen.h"
 #include "raylib.h"
 #include "raymath.h"
 #include "rlgl.h"
-#include <stdio.h>
+
+#define STB_SPRINTF_IMPLEMENTATION
+#include "stb_sprintf.h"
 
 #define CLAY_IMPLEMENTATION
 #include "clay.h"
 #include "clay_renderer_raylib.c"
 
-#define FPS 69
-#define SCREEN_WIDTH 800.0f
-#define SCREEN_HEIGHT 450.0f
+#define FPS 60
+#define SCREEN_WIDTH 1280.0f
+#define SCREEN_HEIGHT 720.0f
+
+#define VELOCITY_CONSTANT 0.1f
+#define MIN_VELOCITY 0.1f
+#define TRIANGLES_EPSILON 0.0001f
 
 #define MIN_RADIUS -50e-10
 #define MAX_RADIUS 50e-10
@@ -27,6 +44,12 @@
 #define BACKGROUND    CLITERAL (Color) { 18, 18, 18, 255 }
 #define KNOB_NORMAL   CLITERAL (Color) { 255, 138, 50, 255 }
 #define KNOB_DRAGGING CLITERAL (Color) { 225, 138, 50, 255 }
+
+#if defined(PLATFORM_WEB)
+    #include <emscripten/emscripten.h>
+#endif
+
+void UpdateDrawFrame(void);
 
 const Clay_Color COLOR_LIGHT          = (Clay_Color) { 224, 215, 210, 255 };
 const Clay_Color COLOR_RED            = (Clay_Color) { 168, 66, 28, 255 };
@@ -64,60 +87,6 @@ size_t doublefactorial(size_t n)
 {
     if (n == 0 || n == 1) return 1;
     return n*doublefactorial(n - 2);
-}
-
-void hydrogen_matrix_compute_min_and_max_values(HydrogenMatrix *a, double min_value, double max_value)
-{
-    for (size_t i = 0; i < a->count; i++) {
-        for (size_t j = 0; j < a->items[0].count; j++) {
-            if (a->items[i].items[j] > max_value) max_value = a->items[i].items[j];
-            if (a->items[i].items[j] < min_value) min_value = a->items[i].items[j];
-        }
-    }
-}
-
-void hydrogen_matrix_multiplication(HydrogenMatrix *a, HydrogenMatrix *b, HydrogenMatrix *c)
-{
-    if (a->items[0].count != b->count) {
-        fprintf(stderr, "ERROR: columns of matrix `a` should be the samne as rows of matrix `b`. You passed %zu and %zu respectively\n", a[0].count, b->count);
-        exit(1);
-    }
-
-    HydrogenRow c_row = {0};
-
-    for (size_t i = 0; i < a->count; i++) {
-        HydrogenRow c_row = {0};
-        for (size_t j = 0; j < b->items[0].count; j++) {
-            double result = 0.0L;
-            for (size_t k = 0; k < b->count; k++) {
-                result += a->items[i].items[k]*b->items[k].items[j];
-            }
-            da_append(&c_row, result);
-        }
-        da_append(c, c_row);
-    }
-
-    da_free(c_row);
-}
-
-void hydrogen_matrix_likewise_multiplication(HydrogenMatrix *a, HydrogenMatrix *b, HydrogenMatrix *c)
-{
-    if (a->items[0].count != b->items[0].count || a->count != b->count) {
-        fprintf(stderr, "ERROR: matrices must have the same shape. [Matrix A]: %zux%zu, [Matrix B]: %zux%zu\n", a->count, a->items[0].count, b->count, b->items[0].count);
-        exit(1);
-    }
-
-    HydrogenRow c_row = {0};
-
-    for (size_t i = 0; i < a->count; i++) {
-        HydrogenRow c_row = {0};
-        for (size_t j = 0; j < b->items[0].count; j++) {
-            da_append(&c_row, a->items[i].items[j]*b->items[i].items[j]);
-        }
-        da_append(c, c_row);
-    }
-
-    da_free(c_row);
 }
 
 double laguerre_polynomials(int n, double x)
@@ -166,20 +135,58 @@ double associated_legendre_function(int m, int l, double x)
     return mfactor*(x*(double)(2*l - 1)*associated_legendre_function(m, l - 1, x) - (double)(l + m - 1)*associated_legendre_function(m, l - 2, x))/(double)(l + m);
 }
 
-void hydrogen_matrix_format(HydrogenMatrix *matrix, bool with_size)
+void hydrogen_matrix_compute_min_and_max_values(HydrogenMatrix *a, double min_value, double max_value)
 {
-    printf("[\n");
-    da_foreach(HydrogenRow, row, matrix) {
-        printf("    [");
-        da_foreach(double, value, row) {
-            printf("%.10lf, ", *value);
+    for (size_t i = 0; i < a->count; i++) {
+        for (size_t j = 0; j < a->items[0].count; j++) {
+            if (a->items[i].items[j] > max_value) max_value = a->items[i].items[j];
+            if (a->items[i].items[j] < min_value) min_value = a->items[i].items[j];
         }
-        printf("],");
-        if (with_size) printf(" size: %zu", row->count);
-        printf("\n");
     }
-    printf("]\n");
-    if (with_size) printf("%zux%zu\n", matrix->count, matrix->items[0].count);
+}
+
+void hydrogen_matrix_multiplication(HydrogenMatrix *a, HydrogenMatrix *b, HydrogenMatrix *c)
+{
+    if (a->items[0].count != b->count) {
+        TraceLog(LOG_ERROR, "ERROR: columns of matrix `a` should be the samne as rows of matrix `b`. You passed %zu and %zu respectively\n", a[0].count, b->count);
+        exit(1);
+    }
+
+    HydrogenRow c_row = {0};
+
+    for (size_t i = 0; i < a->count; i++) {
+        HydrogenRow c_row = {0};
+        for (size_t j = 0; j < b->items[0].count; j++) {
+            double result = 0.0L;
+            for (size_t k = 0; k < b->count; k++) {
+                result += a->items[i].items[k]*b->items[k].items[j];
+            }
+            da_append(&c_row, result);
+        }
+        da_append(c, c_row);
+    }
+
+    da_free(c_row);
+}
+
+void hydrogen_matrix_likewise_multiplication(HydrogenMatrix *a, HydrogenMatrix *b, HydrogenMatrix *c)
+{
+    if (a->items[0].count != b->items[0].count || a->count != b->count) {
+        TraceLog(LOG_ERROR, "ERROR: matrices must have the same shape. [Matrix A]: %zux%zu, [Matrix B]: %zux%zu\n", a->count, a->items[0].count, b->count, b->items[0].count);
+        exit(1);
+    }
+
+    HydrogenRow c_row = {0};
+
+    for (size_t i = 0; i < a->count; i++) {
+        HydrogenRow c_row = {0};
+        for (size_t j = 0; j < b->items[0].count; j++) {
+            da_append(&c_row, a->items[i].items[j]*b->items[i].items[j]);
+        }
+        da_append(c, c_row);
+    }
+
+    da_free(c_row);
 }
 
 void hydrogen_matrix_generate_wave_equation(HydrogenMatrix *spherical_normals, HydrogenMatrix *spherical_harmonics ,HydrogenMatrix *xs, HydrogenMatrix *ys, HydrogenMatrix *zs, size_t vector_size, size_t n, size_t l, int m)
@@ -211,17 +218,17 @@ void hydrogen_matrix_generate_wave_equation(HydrogenMatrix *spherical_normals, H
     for (size_t i = 0; i < 2*vector_size + 1; i++) {
         HydrogenRow cos_theta_row = {0};
         HydrogenRow sin_theta_row = {0};
-        da_append(&cos_theta_row, (double)cos((double)i*M_PI/((double)2*vector_size)));
+        da_append(&cos_theta_row, (double)cos((double)i*PI/((double)2*vector_size)));
         da_append(&cos_theta, cos_theta_row);
-        da_append(&sin_theta_row, (double)sin((double)i*M_PI/((double)2*vector_size)));
+        da_append(&sin_theta_row, (double)sin((double)i*PI/((double)2*vector_size)));
         da_append(&sin_theta, sin_theta_row);
     }
 
     for (int i = -1*(int)vector_size; i < (int)vector_size + 1; i++) {
-        da_append(&cos_phi_row, (double)cos((double)i*M_PI/(double)vector_size));
-        da_append(&sin_phi_row, (double)sin((double)i*M_PI/(double)vector_size));
+        da_append(&cos_phi_row, (double)cos((double)i*PI/(double)vector_size));
+        da_append(&sin_phi_row, (double)sin((double)i*PI/(double)vector_size));
         da_append(&ones_row, 1.0L);
-        da_append(&m_cos_phi_row, (double)cos(abs(m)*(double)i*M_PI/(double)vector_size));
+        da_append(&m_cos_phi_row, (double)cos(abs(m)*(double)i*PI/(double)vector_size));
     }
 
     da_append(&cos_phi, cos_phi_row);
@@ -294,7 +301,7 @@ SliderState slider_m = {0};
 
 void handle_clay_errors(Clay_ErrorData errorData)
 {
-    printf("%s", errorData.errorText.chars);
+    TraceLog(LOG_ERROR, "%s", errorData.errorText.chars);
     switch(errorData.errorType) {
         case CLAY_ERROR_TYPE_TEXT_MEASUREMENT_FUNCTION_NOT_PROVIDED: break;
         case CLAY_ERROR_TYPE_ARENA_CAPACITY_EXCEEDED: break;
@@ -353,7 +360,7 @@ Mesh generate_mesh_from_points(HydrogenMatrix *xs, HydrogenMatrix *ys, HydrogenM
     mesh.colors    = (unsigned char *)MemAlloc(vertex_count*4*sizeof(unsigned char));
     mesh.indices   = (unsigned short *)MemAlloc(triangle_count*3*sizeof(unsigned short));
 
-    float min_val = 1e10, max_val = -1e10;
+    float min_val = (float)INT_MAX, max_val = (float)INT_MIN;
     for (size_t i = 0; i < rows; i++) {
         for (size_t j = 0; j < cols; j++) {
             float val = fabs(values->items[i].items[j]);
@@ -442,7 +449,7 @@ Mesh generate_mesh_from_points(HydrogenMatrix *xs, HydrogenMatrix *ys, HydrogenM
         };
 
         float len = sqrtf(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z);
-        if (len > 0.0001f) {
+        if (len > TRIANGLES_EPSILON) {
             normal = Vector3Normalize(normal);
             mesh.normals[i*3 + 0] = normal.x;
             mesh.normals[i*3 + 1] = normal.y;
@@ -450,10 +457,10 @@ Mesh generate_mesh_from_points(HydrogenMatrix *xs, HydrogenMatrix *ys, HydrogenM
         } else {
             Vector3 pos = {mesh.vertices[i*3], mesh.vertices[i*3 + 1], mesh.vertices[i*3 + 2]};
             float r = sqrtf(pos.x*pos.x + pos.y*pos.y + pos.z*pos.z);
-            if (r > 0.0001f) {
-                mesh.normals[i*3 + 0] = pos.x / r;
-                mesh.normals[i*3 + 1] = pos.y / r;
-                mesh.normals[i*3 + 2] = pos.z / r;
+            if (r > TRIANGLES_EPSILON) {
+                mesh.normals[i*3 + 0] = pos.x/r;
+                mesh.normals[i*3 + 1] = pos.y/r;
+                mesh.normals[i*3 + 2] = pos.z/r;
             } else {
                 mesh.normals[i*3 + 0] = 0.0f;
                 mesh.normals[i*3 + 1] = 1.0f;
@@ -465,6 +472,145 @@ Mesh generate_mesh_from_points(HydrogenMatrix *xs, HydrogenMatrix *ys, HydrogenM
     UploadMesh(&mesh, false);
 
     return mesh;
+}
+
+void ui_draw(bool menu_collapsed, Clay_String n_label, Clay_String l_label, Clay_String m_label)
+{
+    CLAY(CLAY_ID("OuterContainer"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(16), .childGap = 16 }, .backgroundColor = COLOR_TANSPARENT }) {
+        if (menu_collapsed) {
+            CLAY(CLAY_ID("CollapsedMenu"), {
+                .layout = {
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                    .sizing = { .width = CLAY_SIZING_FIXED(60), .height = CLAY_SIZING_FIXED(60) },
+                    .padding = CLAY_PADDING_ALL(8),
+                    .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER }
+                },
+                .backgroundColor = COLOR_BACKGROUND,
+                .cornerRadius = CLAY_CORNER_RADIUS(8)
+            }) {
+                CLAY_TEXT(CLAY_STRING("☰"), CLAY_TEXT_CONFIG({ .fontSize = 32, .textColor = COLOR_ORANGE }));
+            }
+        } else {
+            CLAY(CLAY_ID("SideBar"), {
+                .layout = {
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                    .sizing = { .width = CLAY_SIZING_FIXED(300), .height = CLAY_SIZING_GROW(0) },
+                    .padding = CLAY_PADDING_ALL(16),
+                    .childGap = 12
+                },
+                .backgroundColor = COLOR_BACKGROUND,
+                .cornerRadius = CLAY_CORNER_RADIUS(8)
+            }) {
+                CLAY(CLAY_ID("TitleBar"), {
+                    .layout = {
+                        .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(60) },
+                        .padding = CLAY_PADDING_ALL(8),
+                        .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER }
+                    },
+                    .backgroundColor = COLOR_RED,
+                    .cornerRadius = CLAY_CORNER_RADIUS(6)
+                }) {
+                    CLAY_TEXT(CLAY_STRING("Quantum Numbers [TAB]"), CLAY_TEXT_CONFIG({ .fontSize = 20, .textColor = COLOR_LIGHT }));
+                }
+
+                CLAY(CLAY_ID("SliderContainerN"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0) }, .childGap = 8 } }) {
+                    CLAY_TEXT(n_label, CLAY_TEXT_CONFIG({ .fontSize = 18, .textColor = COLOR_LIGHT }));
+
+                    CLAY(CLAY_ID("SliderBarN"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(40) }, .padding = CLAY_PADDING_ALL(4), .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = COLOR_KNOB_CONTAINER, .cornerRadius = CLAY_CORNER_RADIUS(20) }) {}
+                }
+
+                CLAY(CLAY_ID("SliderContainerL"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0) }, .childGap = 8 } }) {
+                    CLAY_TEXT(l_label, CLAY_TEXT_CONFIG({ .fontSize = 18, .textColor = COLOR_LIGHT }));
+
+                    CLAY(CLAY_ID("SliderBarL"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(40) }, .padding = CLAY_PADDING_ALL(4), .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = COLOR_KNOB_CONTAINER, .cornerRadius = CLAY_CORNER_RADIUS(20) }) {}
+                }
+
+                CLAY(CLAY_ID("SliderContainerM"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0) }, .childGap = 8 } }) {
+                    CLAY_TEXT(m_label, CLAY_TEXT_CONFIG({ .fontSize = 18, .textColor = COLOR_LIGHT }));
+
+                    CLAY(CLAY_ID("SliderBarM"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(40) }, .padding = CLAY_PADDING_ALL(4), .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = COLOR_KNOB_CONTAINER, .cornerRadius = CLAY_CORNER_RADIUS(20) }) {}
+                }
+
+                CLAY(CLAY_ID("InfoSection"), {
+                    .layout = {
+                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                        .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) },
+                        .padding = CLAY_PADDING_ALL(12),
+                        .childGap = 3
+                    },
+                    .backgroundColor = COLOR_INFO,
+                    .cornerRadius = CLAY_CORNER_RADIUS(6),
+                    .clip = { .vertical = true, .childOffset = Clay_GetScrollOffset() }
+                }) {
+                    CLAY_TEXT(CLAY_STRING("Controls"), CLAY_TEXT_CONFIG({ .fontSize = 16, .textColor = COLOR_ORANGE }));
+                    CLAY_TEXT(CLAY_STRING(""), CLAY_TEXT_CONFIG({ .fontSize = 6, .textColor = COLOR_LIGHT }));
+                    CLAY_TEXT(CLAY_STRING("Camera:"), CLAY_TEXT_CONFIG({ .fontSize = 13, .textColor = COLOR_ORANGE }));
+                    CLAY_TEXT(CLAY_STRING("  WASD - Move"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
+                    CLAY_TEXT(CLAY_STRING("  Mouse - Rotate"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
+                    CLAY_TEXT(CLAY_STRING("  Scroll - Zoom"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
+                    CLAY_TEXT(CLAY_STRING(""), CLAY_TEXT_CONFIG({ .fontSize = 6, .textColor = COLOR_LIGHT }));
+                    CLAY_TEXT(CLAY_STRING("Rendering:"), CLAY_TEXT_CONFIG({ .fontSize = 13, .textColor = COLOR_ORANGE }));
+                    CLAY_TEXT(CLAY_STRING("  1 - Points"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
+                    CLAY_TEXT(CLAY_STRING("  2 - Mesh"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
+                    CLAY_TEXT(CLAY_STRING("  3 - Both"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
+                    CLAY_TEXT(CLAY_STRING("  4 - Wireframe"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
+                    CLAY_TEXT(CLAY_STRING(""), CLAY_TEXT_CONFIG({ .fontSize = 6, .textColor = COLOR_LIGHT }));
+                    CLAY_TEXT(CLAY_STRING("UI:"), CLAY_TEXT_CONFIG({ .fontSize = 13, .textColor = COLOR_ORANGE }));
+                    CLAY_TEXT(CLAY_STRING("  TAB - Toggle menu"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
+                    CLAY_TEXT(CLAY_STRING("  O   - Show axis"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
+                    CLAY_TEXT(CLAY_STRING("  R   - Reset camera"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
+                }
+            }
+        }
+    }
+}
+
+void points_draw(HydrogenMatrix *spherical_harmonics, HydrogenMatrix *xs, HydrogenMatrix *ys, HydrogenMatrix *zs)
+{
+    for (size_t i = 0; i < spherical_harmonics->count; i++) {
+        for (size_t j = 0; j < spherical_harmonics->items[0].count; j++) {
+            DrawPoint3D((Vector3){ (float)xs->items[i].items[j], (float)ys->items[i].items[j], (float)zs->items[i].items[j] }, RED);
+        }
+    }
+}
+
+void mesh_draw(Mesh *orbital_mesh)
+{
+    rlDisableBackfaceCulling();
+    rlBegin(RL_TRIANGLES);
+    for (int i = 0; i < orbital_mesh->triangleCount; i++) {
+        unsigned short idx0 = orbital_mesh->indices[i*3 + 0];
+        unsigned short idx1 = orbital_mesh->indices[i*3 + 1];
+        unsigned short idx2 = orbital_mesh->indices[i*3 + 2];
+
+        rlColor4ub(orbital_mesh->colors[idx0*4], orbital_mesh->colors[idx0*4 + 1], orbital_mesh->colors[idx0*4 + 2], orbital_mesh->colors[idx0*4 + 3]);
+        rlVertex3f(orbital_mesh->vertices[idx0*3], orbital_mesh->vertices[idx0*3 + 1], orbital_mesh->vertices[idx0*3 + 2]);
+
+        rlColor4ub(orbital_mesh->colors[idx1*4], orbital_mesh->colors[idx1*4 + 1], orbital_mesh->colors[idx1*4 + 2], orbital_mesh->colors[idx1*4 + 3]);
+        rlVertex3f(orbital_mesh->vertices[idx1*3], orbital_mesh->vertices[idx1*3 + 1], orbital_mesh->vertices[idx1*3 + 2]);
+
+        rlColor4ub(orbital_mesh->colors[idx2*4], orbital_mesh->colors[idx2*4 + 1], orbital_mesh->colors[idx2*4 + 2], orbital_mesh->colors[idx2*4 + 3]);
+        rlVertex3f(orbital_mesh->vertices[idx2*3], orbital_mesh->vertices[idx2*3 + 1], orbital_mesh->vertices[idx2*3 + 2]);
+    }
+    rlEnd();
+    rlEnableBackfaceCulling();
+}
+
+void wireframe_draw(Mesh *orbital_mesh)
+{
+    for (int i = 0; i < orbital_mesh->triangleCount; i++) {
+        unsigned short idx0 = orbital_mesh->indices[i*3 + 0];
+        unsigned short idx1 = orbital_mesh->indices[i*3 + 1];
+        unsigned short idx2 = orbital_mesh->indices[i*3 + 2];
+
+        Vector3 v0 = { orbital_mesh->vertices[idx0*3], orbital_mesh->vertices[idx0*3 + 1], orbital_mesh->vertices[idx0*3 + 2] };
+        Vector3 v1 = { orbital_mesh->vertices[idx1*3], orbital_mesh->vertices[idx1*3 + 1], orbital_mesh->vertices[idx1*3 + 2] };
+        Vector3 v2 = { orbital_mesh->vertices[idx2*3], orbital_mesh->vertices[idx2*3 + 1], orbital_mesh->vertices[idx2*3 + 2] };
+
+        DrawLine3D(v0, v1, ORANGE);
+        DrawLine3D(v1, v2, ORANGE);
+        DrawLine3D(v2, v0, ORANGE);
+    }
 }
 
 void slider_handle_interaction(Clay_String slider_id, SliderState *slider_state, Vector2 mouse_position, bool is_mouse_down)
@@ -501,31 +647,66 @@ float slider_get_knob_position(SliderState *slider_state, float bar_width)
     return normalized*bar_width;
 }
 
+void slider_draw(Clay_String slider_id, SliderState *slider_state, float quantum_number, float is_principal)
+{
+    Clay_ElementData slider_bar_n = Clay_GetElementData(Clay_GetElementId(slider_id));
+    if (slider_bar_n.found) {
+        float knob_pos   = slider_get_knob_position(slider_state, slider_bar_n.boundingBox.width - MAX_STATES);
+        float knob_x     = slider_bar_n.boundingBox.x + KNOB_RADIUS/2 + knob_pos;
+        float knob_y     = slider_bar_n.boundingBox.y + slider_bar_n.boundingBox.height/2;
+        Color knob_color = slider_state->is_dragging ? KNOB_NORMAL : KNOB_DRAGGING;
+        if (is_principal) {
+            if (slider_state->max_value == quantum_number) knob_x = knob_x - KNOB_RADIUS;
+        } else {
+            if (slider_state->max_value == quantum_number && slider_state->min_value != slider_state->max_value) knob_x = knob_x - KNOB_RADIUS;
+        }
+        DrawCircle((int)knob_x, (int)knob_y, KNOB_RADIUS, knob_color);
+    }
+}
+
+// Global variables
+Font fonts[2];
+RenderingMode rendering_mode = POINTS_MODE;
+Camera3D camera = {0};
+
+int n = 1;
+int l = 0;
+int m = 0;
+
+HydrogenMatrix spherical_harmonics = {0};
+HydrogenMatrix spherical_normals   = {0};
+HydrogenMatrix xs                  = {0};
+HydrogenMatrix ys                  = {0};
+HydrogenMatrix zs                  = {0};
+
+Mesh orbital_mesh = {0};
+
+bool needs_regeneration = false;
+bool has_mesh           = false;
+bool menu_collapsed     = false;
+bool is_cursor_on_menu  = false;
+bool show_axis          = true;
+
 int main(void)
 {
-    Clay_Raylib_Initialize((int)SCREEN_WIDTH, (int)SCREEN_HEIGHT, "Hydrogen Atom GIGACHAD", FLAG_BORDERLESS_WINDOWED_MODE | FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE);
+    Clay_Raylib_Initialize((int)SCREEN_WIDTH, (int)SCREEN_HEIGHT, "Hydrogen Atom Visualizer", FLAG_BORDERLESS_WINDOWED_MODE | FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE);
 
     uint64_t totalMemorySize = Clay_MinMemorySize();
     Clay_Arena arena         = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, malloc(totalMemorySize));
 
     Clay_Initialize(arena, (Clay_Dimensions) { SCREEN_WIDTH, SCREEN_HEIGHT }, (Clay_ErrorHandler) { handle_clay_errors, 0 });
-    Font fonts[2];
     fonts[FONT_ID_BODY_24] = LoadFontEx("resources/fonts/Iosevka-Regular.ttc", 48, 0, 400);
 
     Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
 
+#ifndef PLATFORM_WEB
     SetTargetFPS(FPS);
-
-    Camera3D camera   = {0};
+#endif
     camera.position   = (Vector3){ 5.0f, 5.0f, 5.0f };
     camera.target     = (Vector3){ 0.0f, 0.0f, 0.0f };
     camera.up         = (Vector3){ 0.0f, 1.0f, 0.0f };
     camera.fovy       = 45.0f;
     camera.projection = CAMERA_PERSPECTIVE;
-
-    int n = 1;
-    int l = 0;
-    int m = 0;
 
     slider_n.value       = &n;
     slider_n.min_value   = 1;
@@ -542,369 +723,206 @@ int main(void)
     slider_m.max_value   = l;
     slider_m.is_dragging = false;
 
-    size_t vector_size = max(MAX_VECTOR_SIZE, 6*l);
+    hydrogen_matrix_generate_wave_equation(&spherical_normals, &spherical_harmonics, &xs, &ys, &zs, max(MAX_VECTOR_SIZE, 6*l), (size_t)n, (size_t)l, m);
 
-    HydrogenMatrix spherical_harmonics = {0};
-    HydrogenMatrix spherical_normals   = {0};
-    HydrogenMatrix xs                  = {0};
-    HydrogenMatrix ys                  = {0};
-    HydrogenMatrix zs                  = {0};
+    orbital_mesh = generate_mesh_from_points(&xs, &ys, &zs, &spherical_normals);
 
-    hydrogen_matrix_generate_wave_equation(&spherical_normals, &spherical_harmonics, &xs, &ys, &zs, vector_size, (size_t)n, (size_t)l, m);
-
-    Mesh orbital_mesh = generate_mesh_from_points(&xs, &ys, &zs, &spherical_normals);
     Material material = LoadMaterialDefault();
 
-    material.maps[MATERIAL_MAP_ALBEDO].color = WHITE;
+    material.maps[MATERIAL_MAP_ALBEDO].color   = WHITE;
     material.maps[MATERIAL_MAP_EMISSION].color = WHITE;
     material.maps[MATERIAL_MAP_EMISSION].value = 1.0f;
 
-    bool needs_regeneration      = false;
-    bool has_mesh                = false;
-    RenderingMode rendering_mode = POINTS_MODE;
-    bool menu_collapsed          = false;
-    bool is_cursor_on_menu       = false;
-    bool show_axis               = true;
-
+#if defined(PLATFORM_WEB)
+    emscripten_set_main_loop(UpdateDrawFrame, 0, true);
+#else
     while (!WindowShouldClose()) {
-        int old_n = n;
-        int old_l = l;
-        int old_m = m;
-
-        Clay_SetLayoutDimensions((Clay_Dimensions) { SCREEN_WIDTH, SCREEN_HEIGHT });
-
-        Vector2 mouse_position   = GetMousePosition();
-        Vector2 scroll_delta     = GetMouseWheelMoveV();
-        bool is_left_mouse_down  = IsMouseButtonDown(MOUSE_LEFT_BUTTON);
-        bool is_right_mouse_down = IsMouseButtonDown(MOUSE_RIGHT_BUTTON);
-
-        Clay_SetPointerState((Clay_Vector2) { mouse_position.x, mouse_position.y }, is_left_mouse_down);
-        Clay_UpdateScrollContainers(true, (Clay_Vector2) { scroll_delta.x, scroll_delta.y }, GetFrameTime());
-
-        if (!is_right_mouse_down && !menu_collapsed) {
-            slider_handle_interaction(CLAY_STRING("SliderBarN"), &slider_n, mouse_position, is_left_mouse_down);
-            slider_handle_interaction(CLAY_STRING("SliderBarL"), &slider_l, mouse_position, is_left_mouse_down);
-            slider_handle_interaction(CLAY_STRING("SliderBarM"), &slider_m, mouse_position, is_left_mouse_down);
-        }
-
-        if (l >= n) l = n - 1;
-        if (l < 0)  l = 0;
-        slider_l.max_value = n - 1;
-
-        if (m > l)  m = l;
-        if (m < -l) m = -l;
-        slider_m.min_value = -l;
-        slider_m.max_value = l;
-
-        if (old_n != n || old_l != l || old_m != m) needs_regeneration = true;
-
-        if (needs_regeneration) {
-            if (has_mesh) UnloadMesh(orbital_mesh);
-
-            da_free(spherical_harmonics);
-            da_free(spherical_normals);
-            da_free(xs);
-            da_free(ys);
-            da_free(zs);
-
-            spherical_harmonics = (HydrogenMatrix){0};
-            spherical_normals   = (HydrogenMatrix){0};
-
-            xs = (HydrogenMatrix){0};
-            ys = (HydrogenMatrix){0};
-            zs = (HydrogenMatrix){0};
-
-            vector_size = max(MAX_VECTOR_SIZE, 6*l);
-            hydrogen_matrix_generate_wave_equation(&spherical_normals, &spherical_harmonics, &xs, &ys, &zs, vector_size, (size_t)n, (size_t)l, m);
-
-            orbital_mesh = generate_mesh_from_points(&xs, &ys, &zs, &spherical_normals);
-            has_mesh     = true;
-
-            needs_regeneration = false;
-        }
-
-        BeginDrawing();
-        ClearBackground(BACKGROUND);
-
-        if (!slider_n.is_dragging && !slider_l.is_dragging && !slider_m.is_dragging) {
-            UpdateCameraPro(&camera,
-                (Vector3){
-                    (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP) || (is_right_mouse_down && is_left_mouse_down))*0.1f - (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN))*0.1f,
-                    (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT))*0.1f                                             - (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))*0.1f,
-                    IsKeyDown(KEY_SPACE)*0.1f - IsKeyDown(KEY_X)*0.1f
-                },
-                (Vector3){
-                    (is_left_mouse_down || is_right_mouse_down) && !is_cursor_on_menu ? -GetMouseDelta().x*0.1f : 0.0f,
-                    (is_left_mouse_down || is_right_mouse_down) && !is_cursor_on_menu ? -GetMouseDelta().y*0.1f : 0.0f,
-                    0.0f
-                },
-                !is_cursor_on_menu ? GetMouseWheelMove()*2.0f : 0.0f
-            );
-        }
-
-        if (IsKeyPressed(KEY_ONE)) {
-            has_mesh = false;
-            rendering_mode = POINTS_MODE;
-        }
-        if (IsKeyPressed(KEY_TWO)) {
-            has_mesh = true;
-            rendering_mode = MESH_MODE;
-        }
-        if (IsKeyPressed(KEY_THREE)) {
-            has_mesh = true;
-            rendering_mode = POINTS_AND_MESH_MODE;
-        }
-        if (IsKeyPressed(KEY_FOUR)) {
-            has_mesh = true;
-            rendering_mode = WIREFRAME_MODE;
-        }
-        if (IsKeyPressed(KEY_TAB)) {
-            menu_collapsed = !menu_collapsed;
-        }
-
-        if (IsKeyPressed(KEY_O)) {
-            show_axis = !show_axis;
-        }
-
-        if (IsKeyPressed(KEY_R)) {
-            camera.position   = (Vector3){ 5.0f, 5.0f, 5.0f };
-            camera.target     = (Vector3){ 0.0f, 0.0f, 0.0f };
-            camera.up         = (Vector3){ 0.0f, 1.0f, 0.0f };
-            camera.fovy       = 45.0f;
-        }
-
-        BeginMode3D(camera);
-        switch (rendering_mode) {
-            case POINTS_MODE: {
-                for (size_t i = 0; i < spherical_harmonics.count; i++) {
-                    for (size_t j = 0; j < spherical_harmonics.items[0].count; j++) {
-                        DrawPoint3D((Vector3){ (float)xs.items[i].items[j], (float)ys.items[i].items[j], (float)zs.items[i].items[j] }, RED);
-                    }
-                }
-                break;
-            }
-            case MESH_MODE: {
-                if (has_mesh) {
-                    rlDisableBackfaceCulling();
-                    rlBegin(RL_TRIANGLES);
-                    for (int i = 0; i < orbital_mesh.triangleCount; i++) {
-                        unsigned short idx0 = orbital_mesh.indices[i*3 + 0];
-                        unsigned short idx1 = orbital_mesh.indices[i*3 + 1];
-                        unsigned short idx2 = orbital_mesh.indices[i*3 + 2];
-
-                        rlColor4ub(orbital_mesh.colors[idx0*4], orbital_mesh.colors[idx0*4 + 1], orbital_mesh.colors[idx0*4 + 2], orbital_mesh.colors[idx0*4 + 3]);
-                        rlVertex3f(orbital_mesh.vertices[idx0*3], orbital_mesh.vertices[idx0*3 + 1], orbital_mesh.vertices[idx0*3 + 2]);
-
-                        rlColor4ub(orbital_mesh.colors[idx1*4], orbital_mesh.colors[idx1*4 + 1], orbital_mesh.colors[idx1*4 + 2], orbital_mesh.colors[idx1*4 + 3]);
-                        rlVertex3f(orbital_mesh.vertices[idx1*3], orbital_mesh.vertices[idx1*3 + 1], orbital_mesh.vertices[idx1*3 + 2]);
-
-                        rlColor4ub(orbital_mesh.colors[idx2*4], orbital_mesh.colors[idx2*4 + 1], orbital_mesh.colors[idx2*4 + 2], orbital_mesh.colors[idx2*4 + 3]);
-                        rlVertex3f(orbital_mesh.vertices[idx2*3], orbital_mesh.vertices[idx2*3 + 1], orbital_mesh.vertices[idx2*3 + 2]);
-                    }
-                    rlEnd();
-                    rlEnableBackfaceCulling();
-                }
-                break;
-            }
-            case POINTS_AND_MESH_MODE: {
-                if (has_mesh) {
-                    rlDisableBackfaceCulling();
-                    rlBegin(RL_TRIANGLES);
-                    for (int i = 0; i < orbital_mesh.triangleCount; i++) {
-                        unsigned short idx0 = orbital_mesh.indices[i*3 + 0];
-                        unsigned short idx1 = orbital_mesh.indices[i*3 + 1];
-                        unsigned short idx2 = orbital_mesh.indices[i*3 + 2];
-
-                        rlColor4ub(orbital_mesh.colors[idx0*4], orbital_mesh.colors[idx0*4 + 1], orbital_mesh.colors[idx0*4 + 2], orbital_mesh.colors[idx0*4 + 3]);
-                        rlVertex3f(orbital_mesh.vertices[idx0*3], orbital_mesh.vertices[idx0*3 + 1], orbital_mesh.vertices[idx0*3 + 2]);
-
-                        rlColor4ub(orbital_mesh.colors[idx1*4], orbital_mesh.colors[idx1*4 + 1], orbital_mesh.colors[idx1*4 + 2], orbital_mesh.colors[idx1*4 + 3]);
-                        rlVertex3f(orbital_mesh.vertices[idx1*3], orbital_mesh.vertices[idx1*3 + 1], orbital_mesh.vertices[idx1*3 + 2]);
-
-                        rlColor4ub(orbital_mesh.colors[idx2*4], orbital_mesh.colors[idx2*4 + 1], orbital_mesh.colors[idx2*4 + 2], orbital_mesh.colors[idx2*4 + 3]);
-                        rlVertex3f(orbital_mesh.vertices[idx2*3], orbital_mesh.vertices[idx2*3 + 1], orbital_mesh.vertices[idx2*3 + 2]);
-                    }
-                    rlEnd();
-                    rlEnableBackfaceCulling();
-                }
-                for (size_t i = 0; i < spherical_harmonics.count; i++) {
-                    for (size_t j = 0; j < spherical_harmonics.items[0].count; j++) {
-                        DrawPoint3D((Vector3){ (float)xs.items[i].items[j], (float)ys.items[i].items[j], (float)zs.items[i].items[j] }, RED);
-                    }
-                }
-                break;
-            }
-            case WIREFRAME_MODE: {
-                if (has_mesh) {
-                    for (int i = 0; i < orbital_mesh.triangleCount; i++) {
-                        unsigned short idx0 = orbital_mesh.indices[i*3 + 0];
-                        unsigned short idx1 = orbital_mesh.indices[i*3 + 1];
-                        unsigned short idx2 = orbital_mesh.indices[i*3 + 2];
-
-                        Vector3 v0 = { orbital_mesh.vertices[idx0*3], orbital_mesh.vertices[idx0*3 + 1], orbital_mesh.vertices[idx0*3 + 2] };
-                        Vector3 v1 = { orbital_mesh.vertices[idx1*3], orbital_mesh.vertices[idx1*3 + 1], orbital_mesh.vertices[idx1*3 + 2] };
-                        Vector3 v2 = { orbital_mesh.vertices[idx2*3], orbital_mesh.vertices[idx2*3 + 1], orbital_mesh.vertices[idx2*3 + 2] };
-
-                        DrawLine3D(v0, v1, ORANGE);
-                        DrawLine3D(v1, v2, ORANGE);
-                        DrawLine3D(v2, v0, ORANGE);
-                    }
-                }
-                break;
-            }
-            default: break;
-        }
-
-        if (show_axis) {
-            DrawLine3D((Vector3){0, 0, 0}, (Vector3){1000, 0, 0}, RED);
-            DrawLine3D((Vector3){0, 0, 0}, (Vector3){0, 1000, 0}, GREEN);
-            DrawLine3D((Vector3){0, 0, 0}, (Vector3){0, 0, 1000}, BLUE);
-        }
-
-        EndMode3D();
-
-        Clay_BeginLayout();
-
-        CLAY(CLAY_ID("OuterContainer"), { .layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(16), .childGap = 16 }, .backgroundColor = COLOR_TANSPARENT }) {
-            if (menu_collapsed) {
-                CLAY(CLAY_ID("CollapsedMenu"), {
-                    .layout = {
-                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                        .sizing = { .width = CLAY_SIZING_FIXED(60), .height = CLAY_SIZING_FIXED(60) },
-                        .padding = CLAY_PADDING_ALL(8),
-                        .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER }
-                    },
-                    .backgroundColor = COLOR_BACKGROUND,
-                    .cornerRadius = CLAY_CORNER_RADIUS(8)
-                }) {
-                    CLAY_TEXT(CLAY_STRING("☰"), CLAY_TEXT_CONFIG({ .fontSize = 32, .textColor = COLOR_ORANGE }));
-                }
-            } else {
-                CLAY(CLAY_ID("SideBar"), {
-                    .layout = {
-                        .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                        .sizing = { .width = CLAY_SIZING_FIXED(300), .height = CLAY_SIZING_GROW(0) },
-                        .padding = CLAY_PADDING_ALL(16),
-                        .childGap = 12
-                    },
-                    .backgroundColor = COLOR_BACKGROUND,
-                    .cornerRadius = CLAY_CORNER_RADIUS(8)
-                }) {
-                    CLAY(CLAY_ID("TitleBar"), {
-                        .layout = {
-                            .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) },
-                            .padding = CLAY_PADDING_ALL(8),
-                            .childAlignment = { .x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER }
-                        },
-                        .backgroundColor = COLOR_RED,
-                        .cornerRadius = CLAY_CORNER_RADIUS(6)
-                    }) {
-                        CLAY_TEXT(CLAY_STRING("Quantum Numbers [TAB]"), CLAY_TEXT_CONFIG({ .fontSize = 20, .textColor = COLOR_LIGHT }));
-                    }
-
-                    CLAY(CLAY_ID("SliderContainerN"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0) }, .childGap = 8 } }) {
-                        char n_label[32];
-                        snprintf(n_label, sizeof(n_label), "n = %d", n);
-                        CLAY_TEXT(((Clay_String) { .length = strlen(n_label), .chars = n_label }), CLAY_TEXT_CONFIG({ .fontSize = 18, .textColor = COLOR_LIGHT }));
-
-                        CLAY(CLAY_ID("SliderBarN"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(40) }, .padding = CLAY_PADDING_ALL(4), .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = COLOR_KNOB_CONTAINER, .cornerRadius = CLAY_CORNER_RADIUS(20) }) {}
-                    }
-
-                    CLAY(CLAY_ID("SliderContainerL"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0) }, .childGap = 8 } }) {
-                        char l_label[32];
-                        snprintf(l_label, sizeof(l_label), "l = %d", l);
-                        CLAY_TEXT(((Clay_String) { .length = strlen(l_label), .chars = l_label }), CLAY_TEXT_CONFIG({ .fontSize = 18, .textColor = COLOR_LIGHT }));
-
-                        CLAY(CLAY_ID("SliderBarL"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(40) }, .padding = CLAY_PADDING_ALL(4), .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = COLOR_KNOB_CONTAINER, .cornerRadius = CLAY_CORNER_RADIUS(20) }) {}
-                    }
-
-                    CLAY(CLAY_ID("SliderContainerM"), { .layout = { .layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = { .width = CLAY_SIZING_GROW(0) }, .childGap = 8 } }) {
-                        char m_label[32];
-                        snprintf(m_label, sizeof(m_label), "m = %d", m);
-                        CLAY_TEXT(((Clay_String) { .length = strlen(m_label), .chars = m_label }), CLAY_TEXT_CONFIG({ .fontSize = 18, .textColor = COLOR_LIGHT }));
-
-                        CLAY(CLAY_ID("SliderBarM"), { .layout = { .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(40) }, .padding = CLAY_PADDING_ALL(4), .childAlignment = { .x = CLAY_ALIGN_X_LEFT, .y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = COLOR_KNOB_CONTAINER, .cornerRadius = CLAY_CORNER_RADIUS(20) }) {}
-                    }
-
-                    CLAY(CLAY_ID("InfoSection"), {
-                        .layout = {
-                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                            .sizing = { .width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) },
-                            .padding = CLAY_PADDING_ALL(12),
-                            .childGap = 3
-                        },
-                        .backgroundColor = COLOR_INFO,
-                        .cornerRadius = CLAY_CORNER_RADIUS(6),
-                        .clip = { .vertical = true, .childOffset = Clay_GetScrollOffset() }
-                    }) {
-                        CLAY_TEXT(CLAY_STRING("Controls"), CLAY_TEXT_CONFIG({ .fontSize = 16, .textColor = COLOR_ORANGE }));
-                        CLAY_TEXT(CLAY_STRING(""), CLAY_TEXT_CONFIG({ .fontSize = 6, .textColor = COLOR_LIGHT }));
-                        CLAY_TEXT(CLAY_STRING("Camera:"), CLAY_TEXT_CONFIG({ .fontSize = 13, .textColor = COLOR_ORANGE }));
-                        CLAY_TEXT(CLAY_STRING("  WASD - Move"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
-                        CLAY_TEXT(CLAY_STRING("  Mouse - Rotate"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
-                        CLAY_TEXT(CLAY_STRING("  Scroll - Zoom"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
-                        CLAY_TEXT(CLAY_STRING(""), CLAY_TEXT_CONFIG({ .fontSize = 6, .textColor = COLOR_LIGHT }));
-                        CLAY_TEXT(CLAY_STRING("Rendering:"), CLAY_TEXT_CONFIG({ .fontSize = 13, .textColor = COLOR_ORANGE }));
-                        CLAY_TEXT(CLAY_STRING("  1 - Points"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
-                        CLAY_TEXT(CLAY_STRING("  2 - Mesh"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
-                        CLAY_TEXT(CLAY_STRING("  3 - Both"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
-                        CLAY_TEXT(CLAY_STRING("  4 - Wireframe"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
-                        CLAY_TEXT(CLAY_STRING(""), CLAY_TEXT_CONFIG({ .fontSize = 6, .textColor = COLOR_LIGHT }));
-                        CLAY_TEXT(CLAY_STRING("UI:"), CLAY_TEXT_CONFIG({ .fontSize = 13, .textColor = COLOR_ORANGE }));
-                        CLAY_TEXT(CLAY_STRING("  TAB - Toggle menu"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
-                        CLAY_TEXT(CLAY_STRING("  O   - Show axis"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
-                        CLAY_TEXT(CLAY_STRING("  R   - Reset camera"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
-                    }
-                }
-            }
-        }
-
-        Clay_RenderCommandArray commands = Clay_EndLayout();
-        Clay_Raylib_Render(commands, fonts);
-
-        if (!menu_collapsed) {
-            if (Clay_PointerOver(Clay_GetElementId(CLAY_STRING("OuterContainer")))) is_cursor_on_menu = false;
-            if (Clay_PointerOver(Clay_GetElementId(CLAY_STRING("SideBar"))))        is_cursor_on_menu = true;
-
-            Clay_ElementData slider_bar_n = Clay_GetElementData(Clay_GetElementId(CLAY_STRING("SliderBarN")));
-            if (slider_bar_n.found) {
-                float knob_pos   = slider_get_knob_position(&slider_n, slider_bar_n.boundingBox.width - MAX_STATES);
-                float knob_x     = slider_bar_n.boundingBox.x + KNOB_RADIUS/2 + knob_pos;
-                float knob_y     = slider_bar_n.boundingBox.y + slider_bar_n.boundingBox.height/2;
-                Color knob_color = slider_n.is_dragging ? KNOB_NORMAL : KNOB_DRAGGING;
-                if (slider_n.max_value == n) knob_x = knob_x - KNOB_RADIUS;
-                DrawCircle((int)knob_x, (int)knob_y, KNOB_RADIUS, knob_color);
-            }
-
-            Clay_ElementData slider_bar_l = Clay_GetElementData(Clay_GetElementId(CLAY_STRING("SliderBarL")));
-            if (slider_bar_l.found) {
-                float knob_pos   = slider_get_knob_position(&slider_l, slider_bar_l.boundingBox.width - MAX_STATES);
-                float knob_x     = slider_bar_l.boundingBox.x + KNOB_RADIUS/2 + knob_pos;
-                float knob_y     = slider_bar_l.boundingBox.y + slider_bar_l.boundingBox.height/2;
-                Color knob_color = slider_l.is_dragging ? KNOB_NORMAL : KNOB_DRAGGING;
-                if (slider_l.max_value == l && slider_l.min_value != slider_l.max_value) knob_x = knob_x - KNOB_RADIUS;
-                DrawCircle((int)knob_x, (int)knob_y, KNOB_RADIUS, knob_color);
-            }
-
-            Clay_ElementData slider_bar_m = Clay_GetElementData(Clay_GetElementId(CLAY_STRING("SliderBarM")));
-            if (slider_bar_m.found) {
-                float knob_pos   = slider_get_knob_position(&slider_m, slider_bar_m.boundingBox.width - MAX_STATES);
-                float knob_x     = slider_bar_m.boundingBox.x + KNOB_RADIUS/2 + knob_pos;
-                float knob_y     = slider_bar_m.boundingBox.y + slider_bar_m.boundingBox.height/2;
-                Color knob_color = slider_m.is_dragging ? KNOB_NORMAL : KNOB_DRAGGING;
-                if (slider_m.max_value == m && slider_m.min_value != slider_m.max_value) knob_x = knob_x - KNOB_RADIUS;
-                DrawCircle((int)knob_x, (int)knob_y, KNOB_RADIUS, knob_color);
-            }
-        } else {
-            is_cursor_on_menu = false;
-        }
-
-        EndDrawing();
+        UpdateDrawFrame();
     }
+#endif
 
+#ifdef PLATFORM_WEB
+    TraceLog(LOG_INFO, "unloading mesh %p\n", &orbital_mesh);
+#endif
     UnloadMesh(orbital_mesh);
     UnloadMaterial(material);
     CloseWindow();
 
     return 0;
+}
+
+void UpdateDrawFrame(void)
+{
+    int old_n = n;
+    int old_l = l;
+    int old_m = m;
+
+    char n_label_string[32];
+    stbsp_snprintf(n_label_string, sizeof(n_label_string), "n = %d", n);
+    Clay_String n_label = { .length = strlen(n_label_string), .chars = n_label_string };
+
+    char l_label_string[32];
+    stbsp_snprintf(l_label_string, sizeof(l_label_string), "l = %d", l);
+    Clay_String l_label = { .length = strlen(l_label_string), .chars = l_label_string };
+
+    char m_label_string[32];
+    stbsp_snprintf(m_label_string, sizeof(m_label_string), "m = %d", m);
+    Clay_String m_label = { .length = strlen(m_label_string), .chars = m_label_string };
+
+    Clay_SetLayoutDimensions((Clay_Dimensions) { SCREEN_WIDTH, SCREEN_HEIGHT });
+
+    Vector2 mouse_position   = GetMousePosition();
+    Vector2 scroll_delta     = GetMouseWheelMoveV();
+    bool is_left_mouse_down  = IsMouseButtonDown(MOUSE_LEFT_BUTTON);
+    bool is_right_mouse_down = IsMouseButtonDown(MOUSE_RIGHT_BUTTON);
+    float player_velocity    = VELOCITY_CONSTANT*Vector3Length(camera.position) + MIN_VELOCITY;
+
+    Clay_SetPointerState((Clay_Vector2) { mouse_position.x, mouse_position.y }, is_left_mouse_down);
+    Clay_UpdateScrollContainers(true, (Clay_Vector2) { scroll_delta.x, scroll_delta.y }, GetFrameTime());
+
+    if (!is_right_mouse_down && !menu_collapsed) {
+        slider_handle_interaction(CLAY_STRING("SliderBarN"), &slider_n, mouse_position, is_left_mouse_down);
+        slider_handle_interaction(CLAY_STRING("SliderBarL"), &slider_l, mouse_position, is_left_mouse_down);
+        slider_handle_interaction(CLAY_STRING("SliderBarM"), &slider_m, mouse_position, is_left_mouse_down);
+    }
+
+    if (l >= n) l = n - 1;
+    if (l < 0)  l = 0;
+    slider_l.max_value = n - 1;
+
+    if (m > l)  m = l;
+    if (m < -l) m = -l;
+    slider_m.min_value = -l;
+    slider_m.max_value = l;
+
+    if (old_n != n || old_l != l || old_m != m) needs_regeneration = true;
+
+    if (needs_regeneration) {
+        if (has_mesh) {
+#ifdef PLATFORM_WEB
+            TraceLog(LOG_INFO, "unloading mesh %p\n", &orbital_mesh);
+#endif
+            UnloadMesh(orbital_mesh);
+        }
+
+        da_free(spherical_harmonics);
+        da_free(spherical_normals);
+        da_free(xs);
+        da_free(ys);
+        da_free(zs);
+
+        spherical_harmonics = (HydrogenMatrix){0};
+        spherical_normals   = (HydrogenMatrix){0};
+
+        xs = (HydrogenMatrix){0};
+        ys = (HydrogenMatrix){0};
+        zs = (HydrogenMatrix){0};
+
+        hydrogen_matrix_generate_wave_equation(&spherical_normals, &spherical_harmonics, &xs, &ys, &zs, max(MAX_VECTOR_SIZE, 6*l), (size_t)n, (size_t)l, m);
+
+        orbital_mesh = generate_mesh_from_points(&xs, &ys, &zs, &spherical_normals);
+        has_mesh     = true;
+
+        needs_regeneration = false;
+    }
+
+    BeginDrawing();
+    ClearBackground(BACKGROUND);
+
+    const float dt = 0.1f;
+    if (!slider_n.is_dragging && !slider_l.is_dragging && !slider_m.is_dragging) {
+        UpdateCameraPro(&camera,
+            (Vector3){
+                (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP) || (is_right_mouse_down && is_left_mouse_down))*dt*player_velocity - (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN))*dt*player_velocity,
+                (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT))*dt*player_velocity                                             - (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))*dt*player_velocity,
+                IsKeyDown(KEY_SPACE)*dt*player_velocity - IsKeyDown(KEY_X)*dt*player_velocity
+            },
+            (Vector3){
+                (is_left_mouse_down || is_right_mouse_down) && !is_cursor_on_menu ? -GetMouseDelta().x*dt*player_velocity : 0.0f,
+                (is_left_mouse_down || is_right_mouse_down) && !is_cursor_on_menu ? -GetMouseDelta().y*dt*player_velocity : 0.0f,
+                0.0f
+            },
+            !is_cursor_on_menu ? GetMouseWheelMove()*2*dt : 0.0f
+        );
+    }
+
+    if (IsKeyPressed(KEY_ONE)) {
+        has_mesh = false;
+        rendering_mode = POINTS_MODE;
+    }
+    if (IsKeyPressed(KEY_TWO)) {
+        has_mesh = true;
+        rendering_mode = MESH_MODE;
+    }
+    if (IsKeyPressed(KEY_THREE)) {
+        has_mesh = true;
+        rendering_mode = POINTS_AND_MESH_MODE;
+    }
+    if (IsKeyPressed(KEY_FOUR)) {
+        has_mesh = true;
+        rendering_mode = WIREFRAME_MODE;
+    }
+    if (IsKeyPressed(KEY_TAB)) {
+        menu_collapsed = !menu_collapsed;
+    }
+
+    if (IsKeyPressed(KEY_O)) {
+        show_axis = !show_axis;
+    }
+
+    if (IsKeyPressed(KEY_R)) {
+        camera.position   = (Vector3){ 5.0f, 5.0f, 5.0f };
+        camera.target     = (Vector3){ 0.0f, 0.0f, 0.0f };
+        camera.up         = (Vector3){ 0.0f, 1.0f, 0.0f };
+        camera.fovy       = 45.0f;
+    }
+
+    BeginMode3D(camera);
+    switch (rendering_mode) {
+        case POINTS_MODE: {
+            points_draw(&spherical_harmonics, &xs, &ys, &zs);
+            break;
+        }
+        case MESH_MODE: {
+            if (has_mesh) mesh_draw(&orbital_mesh);
+            break;
+        }
+        case POINTS_AND_MESH_MODE: {
+            if (has_mesh) mesh_draw(&orbital_mesh);
+            points_draw(&spherical_harmonics, &xs, &ys, &zs);
+            break;
+        }
+        case WIREFRAME_MODE: {
+            if (has_mesh) wireframe_draw(&orbital_mesh);
+            break;
+        }
+        default: break;
+    }
+
+    if (show_axis) {
+        DrawLine3D((Vector3){0, 0, 0}, (Vector3){1000, 0, 0}, RED);
+        DrawLine3D((Vector3){0, 0, 0}, (Vector3){0, 1000, 0}, GREEN);
+        DrawLine3D((Vector3){0, 0, 0}, (Vector3){0, 0, 1000}, BLUE);
+    }
+
+    EndMode3D();
+
+    Clay_BeginLayout();
+
+    ui_draw(menu_collapsed, n_label, l_label, m_label);
+    Clay_RenderCommandArray commands = Clay_EndLayout();
+    Clay_Raylib_Render(commands, fonts);
+
+    if (!menu_collapsed) {
+        if (Clay_PointerOver(Clay_GetElementId(CLAY_STRING("OuterContainer")))) is_cursor_on_menu = false;
+        if (Clay_PointerOver(Clay_GetElementId(CLAY_STRING("SideBar"))))        is_cursor_on_menu = true;
+
+        slider_draw(CLAY_STRING("SliderBarN"), &slider_n, n, true);
+        slider_draw(CLAY_STRING("SliderBarL"), &slider_l, l, false);
+        slider_draw(CLAY_STRING("SliderBarM"), &slider_m, m, false);
+    } else {
+        is_cursor_on_menu = false;
+    }
+
+    EndDrawing();
 }

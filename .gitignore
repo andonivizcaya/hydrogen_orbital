@@ -1,3 +1,2 @@
-raylib
-raylib/*
 main
+wasm/.*wat
