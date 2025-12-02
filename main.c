@@ -32,7 +32,7 @@
 
 #define VELOCITY_CONSTANT 0.1f
 #define MIN_VELOCITY 0.1f
-#define TRIANGLES_EPSILON 0.0001f
+#define TRIANGLES_EPSILON 1e-9
 
 #define MIN_RADIUS -50e-10
 #define MAX_RADIUS 50e-10
@@ -73,6 +73,7 @@ typedef enum {
     MESH_MODE,
     POINTS_AND_MESH_MODE,
     WIREFRAME_MODE,
+    WIREFRAME_AND_MESH_MODE,
 } RenderingMode;
 
 size_t factorial(int n)
@@ -350,7 +351,7 @@ Mesh generate_mesh_from_points(HydrogenMatrix *xs, HydrogenMatrix *ys, HydrogenM
     size_t vertex_count   = rows*cols;
     size_t triangle_count = (rows - 1)*(cols - 1)*2;
 
-    Mesh mesh          = { 0 };
+    Mesh mesh          = {0};
     mesh.vertexCount   = vertex_count;
     mesh.triangleCount = triangle_count;
 
@@ -382,7 +383,7 @@ Mesh generate_mesh_from_points(HydrogenMatrix *xs, HydrogenMatrix *ys, HydrogenM
             mesh.colors[idx*4 + 0] = jet_color.r;
             mesh.colors[idx*4 + 1] = jet_color.g;
             mesh.colors[idx*4 + 2] = jet_color.b;
-            mesh.colors[idx*4 + 3] = 200;
+            mesh.colors[idx*4 + 3] = 255;
 
             mesh.texcoords[idx*2 + 0] = (float)j/(float)cols;
             mesh.texcoords[idx*2 + 1] = (float)i/(float)rows;
@@ -455,7 +456,7 @@ Mesh generate_mesh_from_points(HydrogenMatrix *xs, HydrogenMatrix *ys, HydrogenM
             mesh.normals[i*3 + 1] = normal.y;
             mesh.normals[i*3 + 2] = normal.z;
         } else {
-            Vector3 pos = {mesh.vertices[i*3], mesh.vertices[i*3 + 1], mesh.vertices[i*3 + 2]};
+            Vector3 pos = { mesh.vertices[i*3], mesh.vertices[i*3 + 1], mesh.vertices[i*3 + 2] };
             float r = sqrtf(pos.x*pos.x + pos.y*pos.y + pos.z*pos.z);
             if (r > TRIANGLES_EPSILON) {
                 mesh.normals[i*3 + 0] = pos.x/r;
@@ -554,6 +555,7 @@ void ui_draw(bool menu_collapsed, Clay_String n_label, Clay_String l_label, Clay
                     CLAY_TEXT(CLAY_STRING("  2 - Mesh"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
                     CLAY_TEXT(CLAY_STRING("  3 - Both"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
                     CLAY_TEXT(CLAY_STRING("  4 - Wireframe"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
+                    CLAY_TEXT(CLAY_STRING("  5 - Wireframe and Mesh"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
                     CLAY_TEXT(CLAY_STRING(""), CLAY_TEXT_CONFIG({ .fontSize = 6, .textColor = COLOR_LIGHT }));
                     CLAY_TEXT(CLAY_STRING("UI:"), CLAY_TEXT_CONFIG({ .fontSize = 13, .textColor = COLOR_ORANGE }));
                     CLAY_TEXT(CLAY_STRING("  TAB - Toggle menu"), CLAY_TEXT_CONFIG({ .fontSize = 11, .textColor = COLOR_LIGHT }));
@@ -574,26 +576,39 @@ void points_draw(HydrogenMatrix *spherical_harmonics, HydrogenMatrix *xs, Hydrog
     }
 }
 
-void mesh_draw(Mesh *orbital_mesh)
+void mesh_draw(Mesh *orbital_mesh, Camera3D *camera)
 {
-    rlDisableBackfaceCulling();
     rlBegin(RL_TRIANGLES);
     for (int i = 0; i < orbital_mesh->triangleCount; i++) {
         unsigned short idx0 = orbital_mesh->indices[i*3 + 0];
         unsigned short idx1 = orbital_mesh->indices[i*3 + 1];
         unsigned short idx2 = orbital_mesh->indices[i*3 + 2];
 
-        rlColor4ub(orbital_mesh->colors[idx0*4], orbital_mesh->colors[idx0*4 + 1], orbital_mesh->colors[idx0*4 + 2], orbital_mesh->colors[idx0*4 + 3]);
-        rlVertex3f(orbital_mesh->vertices[idx0*3], orbital_mesh->vertices[idx0*3 + 1], orbital_mesh->vertices[idx0*3 + 2]);
+        Vector3 v0 = { orbital_mesh->vertices[idx0*3 + 0], orbital_mesh->vertices[idx0*3 + 1], orbital_mesh->vertices[idx0*3 + 2] };
+        Vector3 v1 = { orbital_mesh->vertices[idx1*3 + 0], orbital_mesh->vertices[idx1*3 + 1], orbital_mesh->vertices[idx1*3 + 2] };
+        Vector3 v2 = { orbital_mesh->vertices[idx2*3 + 0], orbital_mesh->vertices[idx2*3 + 1], orbital_mesh->vertices[idx2*3 + 2] };
 
-        rlColor4ub(orbital_mesh->colors[idx1*4], orbital_mesh->colors[idx1*4 + 1], orbital_mesh->colors[idx1*4 + 2], orbital_mesh->colors[idx1*4 + 3]);
-        rlVertex3f(orbital_mesh->vertices[idx1*3], orbital_mesh->vertices[idx1*3 + 1], orbital_mesh->vertices[idx1*3 + 2]);
+        Vector3 edge1  = Vector3Subtract(v1, v0);
+        Vector3 edge2  = Vector3Subtract(v2, v0);
+        Vector3 normal = Vector3Normalize(Vector3CrossProduct(edge2, edge1));
+
+        Vector3 center  = Vector3Scale(Vector3Add(Vector3Add(v0, v1), v2), 1.0f/3.0f);
+        Vector3 fov_dir = Vector3Normalize(Vector3Subtract(camera->position, center));
+
+        float dot = Vector3DotProduct(normal, fov_dir);
+        if (dot <= 0.0f) continue;
+
+        // WARNING: flip winding order -> render as 0-2-1 instead of 0-1-2... fuck you opengl :)
+        rlColor4ub(orbital_mesh->colors[idx0*4], orbital_mesh->colors[idx0*4 + 1], orbital_mesh->colors[idx0*4 + 2], orbital_mesh->colors[idx0*4 + 3]);
+        rlVertex3f(v0.x, v0.y, v0.z);
 
         rlColor4ub(orbital_mesh->colors[idx2*4], orbital_mesh->colors[idx2*4 + 1], orbital_mesh->colors[idx2*4 + 2], orbital_mesh->colors[idx2*4 + 3]);
-        rlVertex3f(orbital_mesh->vertices[idx2*3], orbital_mesh->vertices[idx2*3 + 1], orbital_mesh->vertices[idx2*3 + 2]);
+        rlVertex3f(v2.x, v2.y, v2.z);
+
+        rlColor4ub(orbital_mesh->colors[idx1*4], orbital_mesh->colors[idx1*4 + 1], orbital_mesh->colors[idx1*4 + 2], orbital_mesh->colors[idx1*4 + 3]);
+        rlVertex3f(v1.x, v1.y, v1.z);
     }
     rlEnd();
-    rlEnableBackfaceCulling();
 }
 
 void wireframe_draw(Mesh *orbital_mesh)
@@ -669,8 +684,8 @@ Font fonts[2];
 RenderingMode rendering_mode = POINTS_MODE;
 Camera3D camera = {0};
 
-int n = 1;
-int l = 0;
+int n = 2;
+int l = 1;
 int m = 0;
 
 HydrogenMatrix spherical_harmonics = {0};
@@ -799,13 +814,15 @@ void UpdateDrawFrame(void)
 
     if (needs_regeneration) {
         if (has_mesh) {
+#if 1
 #ifdef PLATFORM_WEB
-#ifdef WEB_RELEASE
+ #ifdef WEB_RELEASE
             SetTraceLogLevel(LOG_WARNING);
-#endif
+ #endif
             TraceLog(LOG_INFO, "unloading mesh %p", &orbital_mesh);
-#ifdef WEB_RELEASE
+ #ifdef WEB_RELEASE
             SetTraceLogLevel(LOG_FATAL);
+ #endif
 #endif
 #endif
             UnloadMesh(orbital_mesh);
@@ -868,6 +885,10 @@ void UpdateDrawFrame(void)
         has_mesh = true;
         rendering_mode = WIREFRAME_MODE;
     }
+    if (IsKeyPressed(KEY_FIVE)) {
+        has_mesh = true;
+        rendering_mode = WIREFRAME_AND_MESH_MODE;
+    }
     if (IsKeyPressed(KEY_TAB)) {
         menu_collapsed = !menu_collapsed;
     }
@@ -890,16 +911,23 @@ void UpdateDrawFrame(void)
             break;
         }
         case MESH_MODE: {
-            if (has_mesh) mesh_draw(&orbital_mesh);
+            if (has_mesh) mesh_draw(&orbital_mesh, &camera);
             break;
         }
         case POINTS_AND_MESH_MODE: {
-            if (has_mesh) mesh_draw(&orbital_mesh);
+            if (has_mesh) mesh_draw(&orbital_mesh, &camera);
             points_draw(&spherical_harmonics, &xs, &ys, &zs);
             break;
         }
         case WIREFRAME_MODE: {
             if (has_mesh) wireframe_draw(&orbital_mesh);
+            break;
+        }
+        case WIREFRAME_AND_MESH_MODE: {
+            if (has_mesh) {
+                wireframe_draw(&orbital_mesh);
+                mesh_draw(&orbital_mesh, &camera);
+            }
             break;
         }
         default: break;
