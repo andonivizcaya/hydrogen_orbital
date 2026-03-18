@@ -41,23 +41,23 @@
 #define KNOB_RADIUS 16
 #define MAX_STATES 8
 
-#define BACKGROUND    CLITERAL (Color) { 18, 18, 18, 255 }
-#define KNOB_NORMAL   CLITERAL (Color) { 255, 138, 50, 255 }
-#define KNOB_DRAGGING CLITERAL (Color) { 225, 138, 50, 255 }
+#define BACKGROUND    CLITERAL (Color){ 18, 18, 18, 255 }
+#define KNOB_NORMAL   CLITERAL (Color){ 255, 138, 50, 255 }
+#define KNOB_DRAGGING CLITERAL (Color){ 225, 138, 50, 255 }
 
 #ifdef PLATFORM_WEB
 #include <emscripten/emscripten.h>
-#endif
+#endif // PLATFORM_WEB
 
 void UpdateDrawFrame(void);
 
-const Clay_Color COLOR_LIGHT          = (Clay_Color) { 224, 215, 210, 255 };
-const Clay_Color COLOR_RED            = (Clay_Color) { 168, 66, 28, 255 };
-const Clay_Color COLOR_ORANGE         = (Clay_Color) { 225, 138, 50, 255 };
-const Clay_Color COLOR_BACKGROUND     = (Clay_Color) { 18, 18, 18, 255 };
-const Clay_Color COLOR_TANSPARENT     = (Clay_Color) { 0, 0, 0, 0 };
-const Clay_Color COLOR_KNOB_CONTAINER = (Clay_Color) { 50, 50, 50, 255 };
-const Clay_Color COLOR_INFO           = (Clay_Color) { 30, 30, 30, 255 };
+const Clay_Color COLOR_LIGHT          = (Clay_Color){ 224, 215, 210, 255 };
+const Clay_Color COLOR_RED            = (Clay_Color){ 168, 66, 28, 255 };
+const Clay_Color COLOR_ORANGE         = (Clay_Color){ 225, 138, 50, 255 };
+const Clay_Color COLOR_BACKGROUND     = (Clay_Color){ 18, 18, 18, 255 };
+const Clay_Color COLOR_TANSPARENT     = (Clay_Color){ 0, 0, 0, 0 };
+const Clay_Color COLOR_KNOB_CONTAINER = (Clay_Color){ 50, 50, 50, 255 };
+const Clay_Color COLOR_INFO           = (Clay_Color){ 30, 30, 30, 255 };
 
 const uint32_t FONT_ID_BODY_24 = 0;
 
@@ -706,20 +706,20 @@ int main(void)
 {
 #ifdef WEB_RELEASE
     SetTraceLogLevel(LOG_FATAL);
-#endif
+#endif // WEB_RELEASE
     Clay_Raylib_Initialize((int)SCREEN_WIDTH, (int)SCREEN_HEIGHT, "Hydrogen Atom Visualizer", FLAG_BORDERLESS_WINDOWED_MODE | FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE);
 
     uint64_t totalMemorySize = Clay_MinMemorySize();
     Clay_Arena arena         = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, malloc(totalMemorySize));
 
-    Clay_Initialize(arena, (Clay_Dimensions) { SCREEN_WIDTH, SCREEN_HEIGHT }, (Clay_ErrorHandler) { handle_clay_errors, 0 });
+    Clay_Initialize(arena, (Clay_Dimensions){ SCREEN_WIDTH, SCREEN_HEIGHT }, (Clay_ErrorHandler){ handle_clay_errors, 0 });
     fonts[FONT_ID_BODY_24] = LoadFontEx("resources/fonts/Iosevka-Regular.ttc", 48, 0, 400);
 
     Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
 
 #ifndef PLATFORM_WEB
     SetTargetFPS(FPS);
-#endif
+#endif // PLATFORM_WEB
     camera.position   = (Vector3){ 5.0f, 5.0f, 5.0f };
     camera.target     = (Vector3){ 0.0f, 0.0f, 0.0f };
     camera.up         = (Vector3){ 0.0f, 1.0f, 0.0f };
@@ -757,7 +757,7 @@ int main(void)
     while (!WindowShouldClose()) {
         UpdateDrawFrame();
     }
-#endif
+#endif // PLATFORM_WEB
 
     UnloadMesh(orbital_mesh);
     UnloadMaterial(material);
@@ -784,7 +784,7 @@ void UpdateDrawFrame(void)
     stbsp_snprintf(m_label_string, sizeof(m_label_string), "m = %d", m);
     Clay_String m_label = { .length = strlen(m_label_string), .chars = m_label_string };
 
-    Clay_SetLayoutDimensions((Clay_Dimensions) { SCREEN_WIDTH, SCREEN_HEIGHT });
+    Clay_SetLayoutDimensions((Clay_Dimensions){ SCREEN_WIDTH, SCREEN_HEIGHT });
 
     Vector2 mouse_position   = GetMousePosition();
     Vector2 scroll_delta     = GetMouseWheelMoveV();
@@ -793,7 +793,7 @@ void UpdateDrawFrame(void)
     float player_velocity    = VELOCITY_CONSTANT*Vector3Length(camera.position) + MIN_VELOCITY;
 
     Clay_SetPointerState((Clay_Vector2) { mouse_position.x, mouse_position.y }, is_left_mouse_down);
-    Clay_UpdateScrollContainers(true, (Clay_Vector2) { scroll_delta.x, scroll_delta.y }, GetFrameTime());
+    Clay_UpdateScrollContainers(true, (Clay_Vector2){ scroll_delta.x, scroll_delta.y }, GetFrameTime());
 
     if (!is_right_mouse_down && !menu_collapsed) {
         slider_handle_interaction(CLAY_STRING("SliderBarN"), &slider_n, mouse_position, is_left_mouse_down);
@@ -814,17 +814,18 @@ void UpdateDrawFrame(void)
 
     if (needs_regeneration) {
         if (has_mesh) {
+            // TODO: wtf is happening here???
 #if 1
 #ifdef PLATFORM_WEB
- #ifdef WEB_RELEASE
+#ifdef WEB_RELEASE
             SetTraceLogLevel(LOG_WARNING);
- #endif
+#endif // WEB_RELEASE
             TraceLog(LOG_INFO, "unloading mesh %p", &orbital_mesh);
- #ifdef WEB_RELEASE
+#ifdef WEB_RELEASE
             SetTraceLogLevel(LOG_FATAL);
- #endif
-#endif
-#endif
+#endif // WEB_RELEASE
+#endif // WEB_RELEASE
+#endif // PLATFORM_WEB
             UnloadMesh(orbital_mesh);
         }
 
@@ -898,10 +899,10 @@ void UpdateDrawFrame(void)
     }
 
     if (IsKeyPressed(KEY_R)) {
-        camera.position   = (Vector3){ 5.0f, 5.0f, 5.0f };
-        camera.target     = (Vector3){ 0.0f, 0.0f, 0.0f };
-        camera.up         = (Vector3){ 0.0f, 1.0f, 0.0f };
-        camera.fovy       = 45.0f;
+        camera.position = (Vector3){ 5.0f, 5.0f, 5.0f };
+        camera.target   = (Vector3){ 0.0f, 0.0f, 0.0f };
+        camera.up       = (Vector3){ 0.0f, 1.0f, 0.0f };
+        camera.fovy     = 45.0f;
     }
 
     BeginMode3D(camera);
@@ -934,9 +935,9 @@ void UpdateDrawFrame(void)
     }
 
     if (show_axis) {
-        DrawLine3D((Vector3){0, 0, 0}, (Vector3){1000, 0, 0}, RED);
-        DrawLine3D((Vector3){0, 0, 0}, (Vector3){0, 1000, 0}, GREEN);
-        DrawLine3D((Vector3){0, 0, 0}, (Vector3){0, 0, 1000}, BLUE);
+        DrawLine3D((Vector3){ 0, 0, 0 }, (Vector3){ 1000, 0, 0 }, RED);
+        DrawLine3D((Vector3){ 0, 0, 0 }, (Vector3){ 0, 1000, 0 }, GREEN);
+        DrawLine3D((Vector3){ 0, 0, 0 }, (Vector3){ 0, 0, 1000 }, BLUE);
     }
 
     EndMode3D();
