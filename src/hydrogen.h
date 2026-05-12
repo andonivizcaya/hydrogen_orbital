@@ -243,7 +243,7 @@ static inline int hydrogen_iabs(int x)
                 (da)->capacity = DA_INIT_CAP;                                          \
             }                                                                          \
             while ((expected_capacity) > (da)->capacity) {                             \
-                (da)->capacity *= 2;                                                  \
+                (da)->capacity *= 2;                                                   \
             }                                                                          \
             (da)->items = REALLOC((da)->items, (da)->capacity * sizeof(*(da)->items)); \
             ASSERT((da)->items != NULL && "Buy more RAM lol");                         \
