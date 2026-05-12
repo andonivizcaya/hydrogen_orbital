@@ -1,4 +1,4 @@
-// VERSION: 0.01
+// VERSION: 0.02
 
 /*
     NOTE: this is not the final code.
@@ -6,25 +6,55 @@
     Further versions are going to be released.
     Working on them.
     Don't be ass.
+    I stole a lot of shit from musl, zozlib and stuff from the interwebs.
 */
 
-#include <assert.h>
 #include <stdbool.h>
-#include <stdint.h>
-#include <string.h>
 #include <limits.h>
-#include <math.h>
+
 #include "hydrogen.h"
+
+#ifndef HYDROLIB_WEB
+#include <math.h>
+#endif
+
+#ifdef HYDROLIB_WEB
+#define RAYMATH_IMPLEMENTATION
+#endif // HYDROLIB_WEB
+
 #include "raylib.h"
-#include "raymath.h"
+#ifndef HYDROLIB_WEB
 #include "rlgl.h"
+#endif // HYDROLIB_WEB
+
+#ifdef HYDROLIB_WEB
+void DrawMeshIndexedWeb(Mesh *mesh, Camera3D *camera);
+#endif // HYDROLIB_WEB
+
+#include "raymath.h"
+
+#ifdef HYDROLIB_WEB
+#include "hydrogen.h"
+#endif // HYDROLIB_WEB
 
 #define STB_SPRINTF_IMPLEMENTATION
 #include "stb_sprintf.h"
 
 #define CLAY_IMPLEMENTATION
+#ifdef HYDROLIB_WEB
+#define malloc(sz)       MALLOC((size_t)(sz))
+#define realloc(p, sz)   REALLOC((p), (size_t)(sz))
+#define free(p)          FREE((p))
+#endif // HYDROLIB_WEB
+
 #include "clay.h"
 #include "clay_renderer_raylib.c"
+
+#ifdef HYDROLIB_WEB
+#undef malloc
+#undef realloc
+#undef free
+#endif // HYDROLIB_WEB
 
 #define FPS 60
 #define SCREEN_WIDTH 1280.0f
@@ -45,10 +75,6 @@
 #define KNOB_NORMAL   CLITERAL (Color){ 255, 138, 50, 255 }
 #define KNOB_DRAGGING CLITERAL (Color){ 225, 138, 50, 255 }
 
-#ifdef PLATFORM_WEB
-#include <emscripten/emscripten.h>
-#endif // PLATFORM_WEB
-
 void UpdateDrawFrame(void);
 
 const Clay_Color COLOR_LIGHT          = (Clay_Color){ 224, 215, 210, 255 };
@@ -62,10 +88,10 @@ const Clay_Color COLOR_INFO           = (Clay_Color){ 30, 30, 30, 255 };
 const uint32_t FONT_ID_BODY_24 = 0;
 
 typedef struct {
+    bool is_dragging;
     int *value;
     int min_value;
     int max_value;
-    bool is_dragging;
 } SliderState;
 
 typedef enum {
@@ -93,45 +119,45 @@ size_t doublefactorial(size_t n)
 double laguerre_polynomials(int n, double x)
 {
     n = n - 1;
-    if (fabs(x) > 1.0L) return 0.0L;
-    if (n <= 0)         return 1.0L;
-    if (n == 1)         return -x + 1.0L;
+    if (fabs(x) > 1.0) return 0.0;
+    if (n <= 0)         return 1.0;
+    if (n == 1)         return -x + 1.0;
 
-    return (((double)2.0L*n + 1.0L - x)*laguerre_polynomials(n, x) - (double)n*laguerre_polynomials(n - 1, x))/((double)(n + 1.0L));
+    return (((double)2.0*n + 1.0 - x)*laguerre_polynomials(n, x) - (double)n*laguerre_polynomials(n - 1, x))/((double)(n + 1.0));
 }
 
 double associated_laguerre_polynomials(int n, int l, double x)
 {
     if (l == 0) return laguerre_polynomials(n, x);
-    if (n <= 0) return 1.0L;
-    if (n == 1) return 1.0L + l - x;
-    return ((2.0L*n - 1.0L + l -x)*associated_laguerre_polynomials(n - 1, l, x) - (n - 1 + l)*associated_laguerre_polynomials(n - 2, l, x))/n;
+    if (n <= 0) return 1.0;
+    if (n == 1) return 1.0 + l - x;
+    return ((2.0*n - 1.0 + l -x)*associated_laguerre_polynomials(n - 1, l, x) - (n - 1 + l)*associated_laguerre_polynomials(n - 2, l, x))/n;
 }
 
 double associated_legendre_function(int m, int l, double x)
 {
-    if (fabs(x) > 1.0L) return 0.0L;
-    if (abs(m) > l)     return 0.0L;
+    if (fabs(x) > 1.0) return 0.0;
+    if (hydrogen_iabs(m) > l) return 0.0;
 
     if (m == 0) {
-        if (l == 0) return 1.0L;
+        if (l == 0) return 1.0;
         if (l == 1) return x;
-        return (x*(double)(2.0L*l - 1)*associated_legendre_function(m, l - 1, x) - (double)(l + m - 1)*associated_legendre_function(m, l - 2, x))/(double)(l + m);
+        return (x*(double)(2.0*l - 1)*associated_legendre_function(m, l - 1, x) - (double)(l + m - 1)*associated_legendre_function(m, l - 2, x))/(double)(l + m);
     }
 
-    double mfactor = 1.0L;
+    double mfactor = 1.0;
 
     if (m < 0) {
         m = -1*m;
-        mfactor = powf(-1.0L, (double)m)*((double)factorial(l - m)/(double)factorial(l + m));
+        mfactor = powf(-1.0, (double)m)*((double)factorial(l - m)/(double)factorial(l + m));
     }
 
     if (m == l) {
-        if (m == 0) return 1.0L;
-        return mfactor*powf(-1.0, (double)l)*(double)doublefactorial(2*l - 1)*powf(1.0L - x*x, (double)l/2.0L);
+        if (m == 0) return 1.0;
+        return mfactor*powf(-1.0, (double)l)*(double)doublefactorial(2*l - 1)*powf(1.0 - x*x, (double)l/2.0);
     }
 
-    if (m == l - 1) return x*(2.0L*(double)m + 1.0L)*associated_legendre_function(m, m, x);
+    if (m == l - 1) return x*(2.0*(double)m + 1.0)*associated_legendre_function(m, m, x);
 
     return mfactor*(x*(double)(2*l - 1)*associated_legendre_function(m, l - 1, x) - (double)(l + m - 1)*associated_legendre_function(m, l - 2, x))/(double)(l + m);
 }
@@ -148,17 +174,14 @@ void hydrogen_matrix_compute_min_and_max_values(HydrogenMatrix *a, double min_va
 
 void hydrogen_matrix_multiplication(HydrogenMatrix *a, HydrogenMatrix *b, HydrogenMatrix *c)
 {
-    if (a->items[0].count != b->count) {
-        TraceLog(LOG_FATAL, "columns of matrix `a` should be the samne as rows of matrix `b`. You passed %zu and %zu respectively", a[0].count, b->count);
-        exit(1);
-    }
+    ASSERT(a->items[0].count == b->count);
 
     HydrogenRow c_row = {0};
 
     for (size_t i = 0; i < a->count; i++) {
         HydrogenRow c_row = {0};
         for (size_t j = 0; j < b->items[0].count; j++) {
-            double result = 0.0L;
+            double result = 0.0;
             for (size_t k = 0; k < b->count; k++) {
                 result += a->items[i].items[k]*b->items[k].items[j];
             }
@@ -172,10 +195,7 @@ void hydrogen_matrix_multiplication(HydrogenMatrix *a, HydrogenMatrix *b, Hydrog
 
 void hydrogen_matrix_likewise_multiplication(HydrogenMatrix *a, HydrogenMatrix *b, HydrogenMatrix *c)
 {
-    if (a->items[0].count != b->items[0].count || a->count != b->count) {
-        TraceLog(LOG_FATAL, "matrices must have the same shape. [Matrix A]: %zux%zu, [Matrix B]: %zux%zu", a->count, a->items[0].count, b->count, b->items[0].count);
-        exit(1);
-    }
+    ASSERT(a->items[0].count == b->items[0].count && a->count == b->count);
 
     HydrogenRow c_row = {0};
 
@@ -228,8 +248,8 @@ void hydrogen_matrix_generate_wave_equation(HydrogenMatrix *spherical_normals, H
     for (int i = -1*(int)vector_size; i < (int)vector_size + 1; i++) {
         da_append(&cos_phi_row, (double)cos((double)i*PI/(double)vector_size));
         da_append(&sin_phi_row, (double)sin((double)i*PI/(double)vector_size));
-        da_append(&ones_row, 1.0L);
-        da_append(&m_cos_phi_row, (double)cos(abs(m)*(double)i*PI/(double)vector_size));
+        da_append(&ones_row, 1.0);
+        da_append(&m_cos_phi_row, (double)cos((double)hydrogen_iabs(m)*(double)i*PI/(double)vector_size));
     }
 
     da_append(&cos_phi, cos_phi_row);
@@ -248,7 +268,7 @@ void hydrogen_matrix_generate_wave_equation(HydrogenMatrix *spherical_normals, H
     hydrogen_matrix_multiplication(&legendre_polinomyals, &m_cos_phi, spherical_normals);
     hydrogen_matrix_multiplication(&legendre_polinomyals, &m_cos_phi, spherical_harmonics);
     da_foreach(HydrogenRow, row, spherical_harmonics) {
-        da_foreach(double, value, row) *value = powf(fabs(*value), 1.0L/(l + 1.0L));
+        da_foreach(double, value, row) *value = powf(fabs(*value), 1.0/(l + 1.0));
     }
 
     double step   = (MAX_RADIUS - MIN_RADIUS)/(spherical_harmonics->count*spherical_harmonics->items[0].count);
@@ -305,13 +325,13 @@ void handle_clay_errors(Clay_ErrorData errorData)
     TraceLog(LOG_ERROR, "%s", errorData.errorText.chars);
     switch(errorData.errorType) {
         case CLAY_ERROR_TYPE_TEXT_MEASUREMENT_FUNCTION_NOT_PROVIDED: break;
-        case CLAY_ERROR_TYPE_ARENA_CAPACITY_EXCEEDED: break;
-        case CLAY_ERROR_TYPE_ELEMENTS_CAPACITY_EXCEEDED: break;
-        case CLAY_ERROR_TYPE_TEXT_MEASUREMENT_CAPACITY_EXCEEDED: break;
-        case CLAY_ERROR_TYPE_DUPLICATE_ID: break;
-        case CLAY_ERROR_TYPE_FLOATING_CONTAINER_PARENT_NOT_FOUND: break;
-        case CLAY_ERROR_TYPE_PERCENTAGE_OVER_1: break;
-        case CLAY_ERROR_TYPE_INTERNAL_ERROR: break;
+        case CLAY_ERROR_TYPE_ARENA_CAPACITY_EXCEEDED               : break;
+        case CLAY_ERROR_TYPE_ELEMENTS_CAPACITY_EXCEEDED            : break;
+        case CLAY_ERROR_TYPE_TEXT_MEASUREMENT_CAPACITY_EXCEEDED    : break;
+        case CLAY_ERROR_TYPE_DUPLICATE_ID                          : break;
+        case CLAY_ERROR_TYPE_FLOATING_CONTAINER_PARENT_NOT_FOUND   : break;
+        case CLAY_ERROR_TYPE_PERCENTAGE_OVER_1                     : break;
+        case CLAY_ERROR_TYPE_INTERNAL_ERROR                        : break;
 
         default: break;
     }
@@ -578,6 +598,7 @@ void points_draw(HydrogenMatrix *spherical_harmonics, HydrogenMatrix *xs, Hydrog
 
 void mesh_draw(Mesh *orbital_mesh, Camera3D *camera)
 {
+#ifndef HYDROLIB_WEB
     rlBegin(RL_TRIANGLES);
     for (int i = 0; i < orbital_mesh->triangleCount; i++) {
         unsigned short idx0 = orbital_mesh->indices[i*3 + 0];
@@ -609,6 +630,12 @@ void mesh_draw(Mesh *orbital_mesh, Camera3D *camera)
         rlVertex3f(v1.x, v1.y, v1.z);
     }
     rlEnd();
+#else // HYDROLIB_WEB
+
+    DrawMeshIndexedWeb(orbital_mesh, camera);
+
+#endif // !HYDROLIB_WEB
+
 }
 
 void wireframe_draw(Mesh *orbital_mesh)
@@ -646,7 +673,6 @@ void slider_handle_interaction(Clay_String slider_id, SliderState *slider_state,
         float relative_x = mouse_position.x - bar_x;
 
         relative_x = fmax(0.0f, fmin(relative_x, bar_width));
-
         float normalized = relative_x/bar_width;
         int new_value    = slider_state->min_value + (int)(normalized*(slider_state->max_value - slider_state->min_value));
 
@@ -704,22 +730,19 @@ bool show_axis          = true;
 
 int main(void)
 {
-#ifdef WEB_RELEASE
-    SetTraceLogLevel(LOG_FATAL);
-#endif // WEB_RELEASE
     Clay_Raylib_Initialize((int)SCREEN_WIDTH, (int)SCREEN_HEIGHT, "Hydrogen Atom Visualizer", FLAG_BORDERLESS_WINDOWED_MODE | FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE);
 
     uint64_t totalMemorySize = Clay_MinMemorySize();
-    Clay_Arena arena         = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, malloc(totalMemorySize));
+    Clay_Arena arena         = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, MALLOC(totalMemorySize));
 
     Clay_Initialize(arena, (Clay_Dimensions){ SCREEN_WIDTH, SCREEN_HEIGHT }, (Clay_ErrorHandler){ handle_clay_errors, 0 });
     fonts[FONT_ID_BODY_24] = LoadFontEx("resources/fonts/Iosevka-Regular.ttc", 48, 0, 400);
 
     Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
 
-#ifndef PLATFORM_WEB
+#if !defined(PLATFORM_WEB) || defined(HYDROLIB_WEB)
     SetTargetFPS(FPS);
-#endif // PLATFORM_WEB
+#endif // !defined(PLATFORM_WEB) || defined(HYDROLIB_WEB)
     camera.position   = (Vector3){ 5.0f, 5.0f, 5.0f };
     camera.target     = (Vector3){ 0.0f, 0.0f, 0.0f };
     camera.up         = (Vector3){ 0.0f, 1.0f, 0.0f };
@@ -751,17 +774,18 @@ int main(void)
     material.maps[MATERIAL_MAP_EMISSION].color = WHITE;
     material.maps[MATERIAL_MAP_EMISSION].value = 1.0f;
 
-#ifdef PLATFORM_WEB
-    emscripten_set_main_loop(UpdateDrawFrame, 0, true);
-#else
+#if defined(HYDROLIB_WEB)
+    hydrolib_js_set_entry(UpdateDrawFrame);
+#else // HYDROLIB_WEB
+
     while (!WindowShouldClose()) {
         UpdateDrawFrame();
     }
-#endif // PLATFORM_WEB
-
     UnloadMesh(orbital_mesh);
     UnloadMaterial(material);
     CloseWindow();
+
+#endif // HYDROLIB_WEB
 
     return 0;
 }
@@ -774,15 +798,15 @@ void UpdateDrawFrame(void)
 
     char n_label_string[32];
     stbsp_snprintf(n_label_string, sizeof(n_label_string), "n = %d", n);
-    Clay_String n_label = { .length = strlen(n_label_string), .chars = n_label_string };
+    Clay_String n_label = { .length = STRLEN(n_label_string), .chars = n_label_string };
 
     char l_label_string[32];
     stbsp_snprintf(l_label_string, sizeof(l_label_string), "l = %d", l);
-    Clay_String l_label = { .length = strlen(l_label_string), .chars = l_label_string };
+    Clay_String l_label = { .length = STRLEN(l_label_string), .chars = l_label_string };
 
     char m_label_string[32];
     stbsp_snprintf(m_label_string, sizeof(m_label_string), "m = %d", m);
-    Clay_String m_label = { .length = strlen(m_label_string), .chars = m_label_string };
+    Clay_String m_label = { .length = STRLEN(m_label_string), .chars = m_label_string };
 
     Clay_SetLayoutDimensions((Clay_Dimensions){ SCREEN_WIDTH, SCREEN_HEIGHT });
 
@@ -814,18 +838,7 @@ void UpdateDrawFrame(void)
 
     if (needs_regeneration) {
         if (has_mesh) {
-            // TODO: wtf is happening here???
-#if 1
-#ifdef PLATFORM_WEB
-#ifdef WEB_RELEASE
-            SetTraceLogLevel(LOG_WARNING);
-#endif // WEB_RELEASE
             TraceLog(LOG_INFO, "unloading mesh %p", &orbital_mesh);
-#ifdef WEB_RELEASE
-            SetTraceLogLevel(LOG_FATAL);
-#endif // WEB_RELEASE
-#endif // WEB_RELEASE
-#endif // PLATFORM_WEB
             UnloadMesh(orbital_mesh);
         }
 

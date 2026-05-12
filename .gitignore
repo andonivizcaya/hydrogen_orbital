@@ -1,2 +1,3 @@
 main
 wasm/.*wat
+wasm/app.wasm

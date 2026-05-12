@@ -1,1 +1,39 @@
-<!doctypehtml><html><head><meta charset=utf-8><meta content="text/html; charset=utf-8"http-equiv=Content-Type><link href=game.css rel=stylesheet></head><body><canvas id=canvas oncontextmenu=event.preventDefault()></canvas><script>var Module={canvas:document.getElementById("canvas")}</script><script async src=index.js></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>hydrogen</title>
+  <link rel="icon" href="data:," />
+  <style>
+    html, body { margin: 0; height: 100%; background: #121212; overflow: hidden; }
+    #canvas-gl {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 0;
+    }
+    #canvas {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+      pointer-events: none;
+      background: transparent;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas-gl"></canvas>
+  <canvas id="canvas"></canvas>
+  <script src="./hydrolib.js"></script>
+  <script>
+    (async () => {
+      await new HydrolibJs().start({ wasmPath: "app.wasm", canvasId: "canvas" });
+    })().catch(console.error);
+  </script>
+</body>
+</html>
