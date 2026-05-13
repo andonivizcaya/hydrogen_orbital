@@ -2,7 +2,6 @@
 * Subset of raylib + clay + ui renderer for hydrogen_orbital
 * I stole a lot of shit from musl, zozlib and stuff from the interwebs.
  */
-
 function make_environment(env, mathImports = {}) {
     return new Proxy(env, {
         get(target, prop, receiver) {
@@ -446,9 +445,7 @@ class HydrolibJs {
         return false;
     }
 
-    SetConfigFlags(_flags) {
-        // Do nothing and win
-    }
+    SetConfigFlags(_flags) {}
 
     CloseWindow() {
         this.quit = true;
@@ -459,7 +456,6 @@ class HydrolibJs {
     }
 
     SetTargetFPS(fps) {
-        console.log(`The game wants to run at ${fps} FPS, but in Web we gonna just ignore it.`);
         this.targetFPS = fps;
     }
 
@@ -472,8 +468,6 @@ class HydrolibJs {
     }
 
     GetFrameTime() {
-        // TODO: This is a stopgap solution to prevent sudden jumps in dt when the user switches to a differen tab.
-        // We need a proper handling of Target FPS here.
         return Math.min(this.dt, 1.0/this.targetFPS);
     }
 
@@ -1011,9 +1005,10 @@ void main() {
             gl.finish();
             const w = this.ctx.canvas.width;
             const h = this.ctx.canvas.height;
+            this.ctx.save();
             this.ctx.globalCompositeOperation = "copy";
             this.ctx.drawImage(this.canvasGl, 0, 0, w, h);
-            this.ctx.globalCompositeOperation = "source-over";
+            this.ctx.restore();
         }
     }
 
@@ -1235,8 +1230,6 @@ const glfwKeyMapping = {
     "Backslash":      92,
     "BracketRight":   93,
     "Backquote":      96,
-    //  GLFW_KEY_WORLD_1   161
-    //  GLFW_KEY_WORLD_2   162
     "Escape":         256,
     "Enter":          257,
     "Tab":            258,
@@ -1307,7 +1300,6 @@ const glfwKeyMapping = {
     "AltRight":       346,
     "MetaRight":      347,
     "ContextMenu":    348,
-    //  GLFW_KEY_LAST   GLFW_KEY_MENU
 }
 
 function cstrlen(mem, ptr) {
