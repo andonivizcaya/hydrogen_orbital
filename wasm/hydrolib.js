@@ -530,9 +530,9 @@ class HydrolibJs {
     ClearBackground(color_ptr) {
         const buf = this.exports.memory.buffer;
         const rgba = new Uint8Array(buf, color_ptr, 4);
-        const rf = rgba[0] / 255;
-        const gf = rgba[1] / 255;
-        const bf = rgba[2] / 255;
+        const rf = rgba[0]/255;
+        const gf = rgba[1]/255;
+        const bf = rgba[2]/255;
 
         if (this.canvasGl) {
             try {
@@ -562,7 +562,7 @@ class HydrolibJs {
 
         const lines = text.split('\n');
         for (var i = 0; i < lines.length; i++) {
-            this.ctx.fillText(lines[i], posX, posY + fontSize + (i * fontSize));
+            this.ctx.fillText(lines[i], posX, posY + fontSize + (i*fontSize));
         }
     }
 
@@ -772,7 +772,7 @@ class HydrolibJs {
             console.warn("HYDROLIB: wasm malloc not linked. Clay text metrics need libc/allocator in wasm.");
             return;
         }
-        const adv = Math.round(baseSize * 0.52);
+        const adv = Math.round(baseSize*0.52);
         const gw = Math.max(1, adv);
         for (let i = 0; i < 95; i++) {
             const g = gp + i*GLYPH_STRIDE;
@@ -810,7 +810,7 @@ class HydrolibJs {
         const text   = cstr_by_ptr(buffer, text_ptr);
         const out    = new Float32Array(buffer, result_ptr, 2);
         const family = this._hydrolibFontCss(font_ptr);
-        const fs     = fontSize * this.#FONT_SCALE_MAGIC;
+        const fs     = fontSize*this.#FONT_SCALE_MAGIC;
         this.ctx.save();
         this.ctx.font = `${fs}px ${family}`;
         const w = this.ctx.measureText(text).width + Math.max(0, (text.length - 1)*spacing);
@@ -922,7 +922,7 @@ layout(location = 1) in vec4 aCol;
 out vec4 vCol;
 void main() {
     vCol = aCol;
-    gl_Position = uMVP * vec4(aPos, 1.0);
+    gl_Position = uMVP*vec4(aPos, 1.0);
 }`;
         const fs = `#version 300 es
 precision highp float;
@@ -938,7 +938,7 @@ out vec4 vCol;
 void main() {
     vCol = aCol;
     gl_PointSize = uPointSize;
-    gl_Position = uMVP * vec4(aPos, 1.0);
+    gl_Position = uMVP*vec4(aPos, 1.0);
 }`;
         this.glProgTri = hlCompileGlProgram(gl, vsTri, fs);
         this.glProgPt = hlCompileGlProgram(gl, vsPt, fs);
@@ -1046,7 +1046,8 @@ void main() {
             const w = this.ctx.canvas.width;
             const h = this.ctx.canvas.height;
             this.ctx.save();
-            this.ctx.globalCompositeOperation = "copy";
+            this.ctx.globalCompositeOperation = "source-over";
+            this.ctx.clearRect(0, 0, w, h);
             this.ctx.drawImage(this.canvasGl, 0, 0, w, h);
             this.ctx.restore();
             this.ctx.globalCompositeOperation = "source-over";
