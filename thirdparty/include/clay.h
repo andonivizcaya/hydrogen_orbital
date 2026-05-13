@@ -1290,6 +1290,21 @@ struct Clay_Context {
     Clay__DebugElementDataArray debugElementData;
 };
 
+/* Wasm may hit call_indirect null if the handler pointer is wiped (arena overlaps Clay_Context); default is a direct call. */
+static inline void Clay__NotifyArenaCapacityExceeded(void) {
+    Clay_ErrorData errorData = CLAY__INIT(Clay_ErrorData) {
+        .errorType = CLAY_ERROR_TYPE_ARENA_CAPACITY_EXCEEDED,
+        .errorText = CLAY_STRING("Clay attempted to allocate memory in its arena, but ran out of capacity. Try increasing the capacity of the arena passed to Clay_Initialize()"),
+    };
+    Clay_Context *ctx = Clay_GetCurrentContext();
+    if (!ctx || !ctx->errorHandler.errorHandlerFunction) {
+        Clay__ErrorHandlerFunctionDefault(errorData);
+        return;
+    }
+    errorData.userData = ctx->errorHandler.userData;
+    ctx->errorHandler.errorHandlerFunction(errorData);
+}
+
 Clay_Context* Clay__Context_Allocate_Arena(Clay_Arena *arena) {
     size_t totalSizeBytes = sizeof(Clay_Context);
     if (totalSizeBytes > arena->capacity)
@@ -3855,10 +3870,7 @@ Clay__WarningArray Clay__WarningArray_Allocate_Arena(int32_t capacity, Clay_Aren
         arena->nextAllocation = nextAllocOffset + totalSizeBytes;
     }
     else {
-        Clay__currentContext->errorHandler.errorHandlerFunction(CLAY__INIT(Clay_ErrorData) {
-            .errorType = CLAY_ERROR_TYPE_ARENA_CAPACITY_EXCEEDED,
-            .errorText = CLAY_STRING("Clay attempted to allocate memory in its arena, but ran out of capacity. Try increasing the capacity of the arena passed to Clay_Initialize()"),
-            .userData = Clay__currentContext->errorHandler.userData });
+        Clay__NotifyArenaCapacityExceeded();
     }
     return array;
 }
@@ -3881,10 +3893,7 @@ void* Clay__Array_Allocate_Arena(int32_t capacity, uint32_t itemSize, Clay_Arena
         return (void*)((uintptr_t)arena->memory + (uintptr_t)nextAllocOffset);
     }
     else {
-        Clay__currentContext->errorHandler.errorHandlerFunction(CLAY__INIT(Clay_ErrorData) {
-                .errorType = CLAY_ERROR_TYPE_ARENA_CAPACITY_EXCEEDED,
-                .errorText = CLAY_STRING("Clay attempted to allocate memory in its arena, but ran out of capacity. Try increasing the capacity of the arena passed to Clay_Initialize()"),
-                .userData = Clay__currentContext->errorHandler.userData });
+        Clay__NotifyArenaCapacityExceeded();
     }
     return CLAY__NULL;
 }
