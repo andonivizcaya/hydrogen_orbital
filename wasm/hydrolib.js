@@ -716,12 +716,13 @@ class HydrolibJs {
     }
 
     _hydrolibPrepareFontStruct(fontPtr, baseSize, cssFamily) {
+        // bro, I'm about to kill myself :)
         const exp         = this.exports;
-        const mem         = exp.memory.buffer;
-        const glyphsBytes = 95*GLYPH_STRIDE;
-        const recsBytes   = 95*16;
+        const glyphsBytes = 95 * GLYPH_STRIDE;
+        const recsBytes   = 95 * 16;
         const gp          = wasmMalloc(exp, glyphsBytes);
         const rp          = wasmMalloc(exp, recsBytes);
+        const mem = exp.memory.buffer;
         if (!gp || !rp) {
             console.warn("HYDROLIB: wasm malloc not linked. Clay text metrics need libc/allocator in wasm.");
             return;
