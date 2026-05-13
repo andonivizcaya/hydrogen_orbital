@@ -511,7 +511,7 @@ class HydrolibJs {
                 gl.clearDepth(1.0);
                 gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
             } catch (_) {}
-            this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
+            if (!this.gl) this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
             return;
         }
 
@@ -875,7 +875,7 @@ class HydrolibJs {
             antialias: false,
             depth: true,
             stencil: false,
-            preserveDrawingBuffer: false,
+            preserveDrawingBuffer: true,
         });
         if (!gl) {
             throw new Error("WebGL2 unavailable");
@@ -1005,6 +1005,16 @@ void main() {
         }
         this._inMode3D = false;
         this.#flushGlBatches();
+        if (this.canvasGl && this.ctx && this.gl) {
+            const gl = this.gl;
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            gl.finish();
+            const w = this.ctx.canvas.width;
+            const h = this.ctx.canvas.height;
+            this.ctx.globalCompositeOperation = "copy";
+            this.ctx.drawImage(this.canvasGl, 0, 0, w, h);
+            this.ctx.globalCompositeOperation = "source-over";
+        }
     }
 
     DrawModel(_model_ptr, _posX, _posY, _posZ, _scale, _tint_ptr) {}
