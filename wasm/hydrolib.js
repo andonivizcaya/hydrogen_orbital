@@ -43,6 +43,20 @@ function wasmMalloc(exports, bytes) {
     return m(bytes) >>> 0;
 }
 
+function hydrolibStaticBaseHref() {
+    const url    = new URL(window.location.href);
+    let pathname = url.pathname;
+    if (!pathname.endsWith("/")) {
+        const lastSegment = pathname.substring(pathname.lastIndexOf("/") + 1);
+        if (lastSegment.includes("."))
+            pathname = pathname.substring(0, pathname.lastIndexOf("/") + 1);
+        else
+            pathname = pathname + "/";
+    }
+    url.pathname = pathname || "/";
+    return url.href;
+}
+
 function setU32(buf, ptr, v) {
     new Uint32Array(buf, ptr, 1)[0] = v >>> 0;
 }
@@ -293,18 +307,11 @@ class HydrolibJs {
     async #preloadFontBytes() {
         this._fontBytesCache = new Map();
         const canonical = "resources/fonts/Iosevka-Regular.ttc";
-        const relTries = [
-            canonical,
-            "fonts/Iosevka-Regular.ttc",
-        ];
-        const urls = [];
+        const base      = hydrolibStaticBaseHref();
+        const relTries = [canonical, "fonts/Iosevka-Regular.ttc"];
         for (const rel of relTries) {
-            urls.push(new URL(rel, window.location.href).href);
-            urls.push(new URL("../" + rel, window.location.href).href);
-        }
-        for (const url of urls) {
             try {
-                const r = await fetch(url);
+                const r = await fetch(new URL(rel, base).href);
                 if (!r.ok) continue;
                 const buf = new Uint8Array(await r.arrayBuffer());
                 if (!buf.byteLength) continue;
@@ -413,7 +420,8 @@ class HydrolibJs {
 
     async start({ wasmPath, canvasId }) {
         await this.#preloadFontBytes();
-        const wasm = await WebAssembly.instantiateStreaming(fetch(wasmPath), {
+        const wasmHref = new URL(wasmPath || "app.wasm", hydrolibStaticBaseHref()).href;
+        const wasm = await WebAssembly.instantiateStreaming(fetch(wasmHref), {
             env: make_environment(this, hydrolibWasmLibm()),
         });
         this.startExports({
