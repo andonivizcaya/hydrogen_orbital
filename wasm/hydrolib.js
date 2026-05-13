@@ -370,7 +370,7 @@ class HydrolibJs {
 
         const canvas = document.getElementById(canvasId);
         this.canvas = canvas;
-        this.ctx = canvas.getContext("2d", { alpha: false, desynchronized: false });
+        this.ctx = canvas.getContext("2d", { alpha: true, desynchronized: false });
         if (this.ctx === null) {
             throw new Error("Could not create 2d canvas context");
         }
@@ -530,12 +530,6 @@ class HydrolibJs {
     BeginDrawing() {
         const c = this.ctx;
         if (!c) return;
-        if (typeof c.reset === "function") {
-            c.reset();
-        } else {
-            const cv = c.canvas;
-            cv.width = cv.width;
-        }
         c.setTransform(1, 0, 0, 1, 0, 0);
         c.globalAlpha = 1;
         c.globalCompositeOperation = "source-over";
@@ -573,7 +567,15 @@ class HydrolibJs {
                 gl.clearDepth(1.0);
                 gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
             } catch (_) {}
-            if (!this.gl) this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
+            const cx = this.ctx;
+            cx.globalCompositeOperation = "source-over";
+            cx.globalAlpha = 1;
+            if (!this.gl)
+                cx.clearRect(0, 0, cx.canvas.width, cx.canvas.height);
+            else {
+                cx.fillStyle = getColorFromMemory(buf, color_ptr);
+                cx.fillRect(0, 0, cx.canvas.width, cx.canvas.height);
+            }
             return;
         }
 

@@ -15,16 +15,15 @@
       height: 100vh;
       z-index: 1;
       pointer-events: none;
-      background-color: #121212;
     }
   </style>
 </head>
 <body>
   <canvas id="canvas"></canvas>
-  <script src="./hydrolib.js?v=20260511-clay-before-gl"></script>
+  <script src="./hydrolib.js?v=20260511-canvas-css"></script>
   <script>
     (async () => {
-      await new HydrolibJs().start({ wasmPath: "app.wasm?v=20260511-clay-before-gl", canvasId: "canvas" });
+      await new HydrolibJs().start({ wasmPath: "app.wasm?v=20260511-canvas-css", canvasId: "canvas" });
     })().catch(console.error);
   </script>
 </body>
