@@ -7,7 +7,6 @@ For now, it uses the time independent schrödinger equation, but in the future i
 - make
 - some C compiler
 - something graphics related (opengl)
-- emscripten (initialized on this shell session if you want to build for wasm)
 
 ## how to build
 

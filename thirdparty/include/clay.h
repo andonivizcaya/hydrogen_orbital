@@ -4060,6 +4060,8 @@ Clay_Context* Clay_Initialize(Clay_Arena arena, Clay_Dimensions layoutDimensions
     uintptr_t baseOffset = 64 - ((uintptr_t)arena.memory % 64);
     baseOffset = baseOffset == 64 ? 0 : baseOffset;
     arena.memory += baseOffset;
+    if (arena.capacity < (size_t)baseOffset) return NULL;
+    arena.capacity -= (size_t)baseOffset;
     Clay_Context *context = Clay__Context_Allocate_Arena(&arena);
     if (context == NULL) return NULL;
     // DEFAULTS
