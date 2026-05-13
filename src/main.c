@@ -630,12 +630,9 @@ void mesh_draw(Mesh *orbital_mesh, Camera3D *camera)
         rlVertex3f(v1.x, v1.y, v1.z);
     }
     rlEnd();
-#else // HYDROLIB_WEB
-
+#else
     DrawMeshIndexedWeb(orbital_mesh, camera);
-
-#endif // !HYDROLIB_WEB
-
+#endif // HYDROLIB_WEB
 }
 
 void wireframe_draw(Mesh *orbital_mesh)
@@ -732,9 +729,8 @@ int main(void)
 {
     Clay_Raylib_Initialize((int)SCREEN_WIDTH, (int)SCREEN_HEIGHT, "Hydrogen Atom Visualizer", FLAG_BORDERLESS_WINDOWED_MODE | FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE);
 
-    /* Clay_MinMemorySize() is approximate; extra bytes avoid arena overlap into Clay_Context and padding loss at init. */
     uint64_t clay_req        = Clay_MinMemorySize();
-    uint64_t totalMemorySize = clay_req + (clay_req >> 1) + 65536u;
+    uint64_t totalMemorySize = clay_req * 2u + (256u * 1024u);
     void *clay_mem           = MALLOC((size_t)totalMemorySize);
     ASSERT(clay_mem != NULL);
     Clay_Arena arena = Clay_CreateArenaWithCapacityAndMemory((size_t)totalMemorySize, clay_mem);
@@ -781,15 +777,13 @@ int main(void)
 
 #if defined(HYDROLIB_WEB)
     hydrolib_js_set_entry(UpdateDrawFrame);
-#else // HYDROLIB_WEB
-
+#else
     while (!WindowShouldClose()) {
         UpdateDrawFrame();
     }
     UnloadMesh(orbital_mesh);
     UnloadMaterial(material);
     CloseWindow();
-
 #endif // HYDROLIB_WEB
 
     return 0;

@@ -1290,19 +1290,23 @@ struct Clay_Context {
     Clay__DebugElementDataArray debugElementData;
 };
 
-/* Wasm may hit call_indirect null if the handler pointer is wiped (arena overlaps Clay_Context); default is a direct call. */
-static inline void Clay__NotifyArenaCapacityExceeded(void) {
-    Clay_ErrorData errorData = CLAY__INIT(Clay_ErrorData) {
-        .errorType = CLAY_ERROR_TYPE_ARENA_CAPACITY_EXCEEDED,
-        .errorText = CLAY_STRING("Clay attempted to allocate memory in its arena, but ran out of capacity. Try increasing the capacity of the arena passed to Clay_Initialize()"),
-    };
+static inline void Clay__EmitErrorHandler(Clay_ErrorData errorData) {
     Clay_Context *ctx = Clay_GetCurrentContext();
     if (!ctx || !ctx->errorHandler.errorHandlerFunction) {
         Clay__ErrorHandlerFunctionDefault(errorData);
         return;
     }
-    errorData.userData = ctx->errorHandler.userData;
     ctx->errorHandler.errorHandlerFunction(errorData);
+}
+
+static inline void Clay__NotifyArenaCapacityExceeded(void) {
+    Clay_Context *ctx = Clay_GetCurrentContext();
+    Clay_ErrorData errorData = CLAY__INIT(Clay_ErrorData) {
+        .errorType = CLAY_ERROR_TYPE_ARENA_CAPACITY_EXCEEDED,
+        .errorText = CLAY_STRING("Clay attempted to allocate memory in its arena, but ran out of capacity. Try increasing the capacity of the arena passed to Clay_Initialize()"),
+        .userData = ctx ? ctx->errorHandler.userData : NULL,
+    };
+    Clay__EmitErrorHandler(errorData);
 }
 
 Clay_Context* Clay__Context_Allocate_Arena(Clay_Arena *arena) {
@@ -1592,7 +1596,7 @@ Clay__MeasureTextCacheItem *Clay__MeasureTextCached(Clay_String *text, Clay_Text
     if (!Clay__MeasureText) {
         if (!context->booleanWarnings.textMeasurementFunctionNotSet) {
             context->booleanWarnings.textMeasurementFunctionNotSet = true;
-            context->errorHandler.errorHandlerFunction(CLAY__INIT(Clay_ErrorData) {
+            Clay__EmitErrorHandler(CLAY__INIT(Clay_ErrorData) {
                     .errorType = CLAY_ERROR_TYPE_TEXT_MEASUREMENT_FUNCTION_NOT_PROVIDED,
                     .errorText = CLAY_STRING("Clay's internal MeasureText function is null. You may have forgotten to call Clay_SetMeasureTextFunction(), or passed a NULL function pointer by mistake."),
                     .userData = context->errorHandler.userData });
@@ -1647,7 +1651,7 @@ Clay__MeasureTextCacheItem *Clay__MeasureTextCached(Clay_String *text, Clay_Text
     } else {
         if (context->measureTextHashMapInternal.length == context->measureTextHashMapInternal.capacity - 1) {
             if (!context->booleanWarnings.maxTextMeasureCacheExceeded) {
-                context->errorHandler.errorHandlerFunction(CLAY__INIT(Clay_ErrorData) {
+                Clay__EmitErrorHandler(CLAY__INIT(Clay_ErrorData) {
                         .errorType = CLAY_ERROR_TYPE_ELEMENTS_CAPACITY_EXCEEDED,
                         .errorText = CLAY_STRING("Clay ran out of capacity while attempting to measure text elements. Try using Clay_SetMaxElementCount() with a higher value."),
                         .userData = context->errorHandler.userData });
@@ -1670,7 +1674,7 @@ Clay__MeasureTextCacheItem *Clay__MeasureTextCached(Clay_String *text, Clay_Text
     while (end < text->length) {
         if (context->measuredWords.length == context->measuredWords.capacity - 1) {
             if (!context->booleanWarnings.maxTextMeasureCacheExceeded) {
-                context->errorHandler.errorHandlerFunction(CLAY__INIT(Clay_ErrorData) {
+                Clay__EmitErrorHandler(CLAY__INIT(Clay_ErrorData) {
                     .errorType = CLAY_ERROR_TYPE_TEXT_MEASUREMENT_CAPACITY_EXCEEDED,
                     .errorText = CLAY_STRING("Clay has run out of space in it's internal text measurement cache. Try using Clay_SetMaxMeasureTextCacheWordCount() (default 16384, with 1 unit storing 1 measured word)."),
                     .userData = context->errorHandler.userData });
@@ -1752,7 +1756,7 @@ Clay_LayoutElementHashMapItem* Clay__AddHashMapItem(Clay_ElementId elementId, Cl
                 hashItem->onHoverFunction = NULL;
                 hashItem->hoverFunctionUserData = 0;
             } else { // Multiple collisions this frame - two elements have the same ID
-                context->errorHandler.errorHandlerFunction(CLAY__INIT(Clay_ErrorData) {
+                Clay__EmitErrorHandler(CLAY__INIT(Clay_ErrorData) {
                     .errorType = CLAY_ERROR_TYPE_DUPLICATE_ID,
                     .errorText = CLAY_STRING("An element with this ID was already previously declared during this layout."),
                     .userData = context->errorHandler.userData });
@@ -2088,7 +2092,7 @@ void Clay__ConfigureOpenElementPtr(const Clay_ElementDeclaration *declaration) {
     Clay_LayoutElement *openLayoutElement = Clay__GetOpenLayoutElement();
     openLayoutElement->layoutConfig = Clay__StoreLayoutConfig(declaration->layout);
     if ((declaration->layout.sizing.width.type == CLAY__SIZING_TYPE_PERCENT && declaration->layout.sizing.width.size.percent > 1) || (declaration->layout.sizing.height.type == CLAY__SIZING_TYPE_PERCENT && declaration->layout.sizing.height.size.percent > 1)) {
-        context->errorHandler.errorHandlerFunction(CLAY__INIT(Clay_ErrorData) {
+        Clay__EmitErrorHandler(CLAY__INIT(Clay_ErrorData) {
                 .errorType = CLAY_ERROR_TYPE_PERCENTAGE_OVER_1,
                 .errorText = CLAY_STRING("An element was configured with CLAY_SIZING_PERCENT, but the provided percentage value was over 1.0. Clay expects a value between 0 and 1, i.e. 20% is 0.2."),
                 .userData = context->errorHandler.userData });
@@ -2138,7 +2142,7 @@ void Clay__ConfigureOpenElementPtr(const Clay_ElementDeclaration *declaration) {
             } else if (declaration->floating.attachTo == CLAY_ATTACH_TO_ELEMENT_WITH_ID) {
                 Clay_LayoutElementHashMapItem *parentItem = Clay__GetHashMapItem(floatingConfig.parentId);
                 if (parentItem == &Clay_LayoutElementHashMapItem_DEFAULT) {
-                    context->errorHandler.errorHandlerFunction(CLAY__INIT(Clay_ErrorData) {
+                    Clay__EmitErrorHandler(CLAY__INIT(Clay_ErrorData) {
                             .errorType = CLAY_ERROR_TYPE_FLOATING_CONTAINER_PARENT_NOT_FOUND,
                             .errorText = CLAY_STRING("A floating element was declared with a parentId, but no element with that ID was found."),
                             .userData = context->errorHandler.userData });
@@ -2523,7 +2527,7 @@ void Clay__AddRenderCommand(Clay_RenderCommand renderCommand) {
     } else {
         if (!context->booleanWarnings.maxRenderCommandsExceeded) {
             context->booleanWarnings.maxRenderCommandsExceeded = true;
-            context->errorHandler.errorHandlerFunction(CLAY__INIT(Clay_ErrorData) {
+            Clay__EmitErrorHandler(CLAY__INIT(Clay_ErrorData) {
                 .errorType = CLAY_ERROR_TYPE_ELEMENTS_CAPACITY_EXCEEDED,
                 .errorText = CLAY_STRING("Clay ran out of capacity while attempting to create render commands. This is usually caused by a large amount of wrapping text elements while close to the max element capacity. Try using Clay_SetMaxElementCount() with a higher value."),
                 .userData = context->errorHandler.userData });
@@ -3904,7 +3908,7 @@ bool Clay__Array_RangeCheck(int32_t index, int32_t length)
         return true;
     }
     Clay_Context* context = Clay_GetCurrentContext();
-    context->errorHandler.errorHandlerFunction(CLAY__INIT(Clay_ErrorData) {
+    Clay__EmitErrorHandler(CLAY__INIT(Clay_ErrorData) {
             .errorType = CLAY_ERROR_TYPE_INTERNAL_ERROR,
             .errorText = CLAY_STRING("Clay attempted to make an out of bounds array access. This is an internal error and is likely a bug."),
             .userData = context->errorHandler.userData });
@@ -3917,7 +3921,7 @@ bool Clay__Array_AddCapacityCheck(int32_t length, int32_t capacity)
         return true;
     }
     Clay_Context* context = Clay_GetCurrentContext();
-    context->errorHandler.errorHandlerFunction(CLAY__INIT(Clay_ErrorData) {
+    Clay__EmitErrorHandler(CLAY__INIT(Clay_ErrorData) {
         .errorType = CLAY_ERROR_TYPE_INTERNAL_ERROR,
         .errorText = CLAY_STRING("Clay attempted to make an out of bounds array access. This is an internal error and is likely a bug."),
         .userData = context->errorHandler.userData });
@@ -4265,7 +4269,7 @@ Clay_RenderCommandArray Clay_EndLayout(void) {
         });
     }
     if (context->openLayoutElementStack.length > 1) {
-        context->errorHandler.errorHandlerFunction(CLAY__INIT(Clay_ErrorData) {
+        Clay__EmitErrorHandler(CLAY__INIT(Clay_ErrorData) {
                 .errorType = CLAY_ERROR_TYPE_UNBALANCED_OPEN_CLOSE,
                 .errorText = CLAY_STRING("There were still open layout elements when EndLayout was called. This results from an unequal number of calls to Clay__OpenElement and Clay__CloseElement."),
                 .userData = context->errorHandler.userData });
