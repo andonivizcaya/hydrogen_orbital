@@ -372,7 +372,7 @@ class HydrolibJs {
             throw new Error("Could not create 2d canvas context");
         }
 
-        this.canvasGl = document.getElementById("canvas-gl") || undefined;
+        this.canvasGl = document.createElement("canvas");
 
         this.exports = exports;
 
@@ -510,7 +510,13 @@ class HydrolibJs {
         return Math.min(this.dt, 1.0/this.targetFPS);
     }
 
-    BeginDrawing() {}
+    BeginDrawing() {
+        const c = this.ctx;
+        if (!c) return;
+        c.setTransform(1, 0, 0, 1, 0, 0);
+        c.globalAlpha = 1;
+        c.globalCompositeOperation = "source-over";
+    }
 
     EndDrawing() {
         this.prevPressedKeyState.clear();
@@ -960,18 +966,19 @@ void main() {
     }
 
     #computeMvp(camera_ptr) {
+        let idx          = 0;
         const mem        = this.exports.memory.buffer;
-        const px         = hlReadF32(mem, camera_ptr);
-        const py         = hlReadF32(mem, camera_ptr + 4);
-        const pz         = hlReadF32(mem, camera_ptr + 8);
-        const tx         = hlReadF32(mem, camera_ptr + 12);
-        const ty         = hlReadF32(mem, camera_ptr + 16);
-        const tz         = hlReadF32(mem, camera_ptr + 20);
-        const ux         = hlReadF32(mem, camera_ptr + 24);
-        const uy         = hlReadF32(mem, camera_ptr + 28);
-        const uz         = hlReadF32(mem, camera_ptr + 32);
-        const fovyDeg    = hlReadF32(mem, camera_ptr + 36);
-        const projection = hlReadI32(mem, camera_ptr + 40);
+        const px         = hlReadF32(mem, camera_ptr + 4*idx);
+        const py         = hlReadF32(mem, camera_ptr + 4*idx++);
+        const pz         = hlReadF32(mem, camera_ptr + 4*idx++);
+        const tx         = hlReadF32(mem, camera_ptr + 4*idx++);
+        const ty         = hlReadF32(mem, camera_ptr + 4*idx++);
+        const tz         = hlReadF32(mem, camera_ptr + 4*idx++);
+        const ux         = hlReadF32(mem, camera_ptr + 4*idx++);
+        const uy         = hlReadF32(mem, camera_ptr + 4*idx++);
+        const uz         = hlReadF32(mem, camera_ptr + 4*idx++);
+        const fovyDeg    = hlReadF32(mem, camera_ptr + 4*idx++);
+        const projection = hlReadI32(mem, camera_ptr + 4*idx++);
         const w          = this.canvasGl ? this.canvasGl.width : this.ctx.canvas.width;
         const h          = this.canvasGl ? this.canvasGl.height : this.ctx.canvas.height;
         const aspect     = w/Math.max(h, 1);
