@@ -530,6 +530,12 @@ class HydrolibJs {
     BeginDrawing() {
         const c = this.ctx;
         if (!c) return;
+        if (typeof c.reset === "function") {
+            c.reset();
+        } else {
+            const cv = c.canvas;
+            cv.width = cv.width;
+        }
         c.setTransform(1, 0, 0, 1, 0, 0);
         c.globalAlpha = 1;
         c.globalCompositeOperation = "source-over";
@@ -1073,14 +1079,13 @@ void main() {
             const gl = this.gl;
             gl.bindFramebuffer(gl.FRAMEBUFFER, null);
             gl.finish();
-            const w = this.ctx.canvas.width;
-            const h = this.ctx.canvas.height;
-            this.ctx.save();
-            this.ctx.globalCompositeOperation = "copy";
-            this.ctx.drawImage(this.canvasGl, 0, 0, w, h);
-            this.ctx.restore();
-            this.ctx.globalCompositeOperation = "source-over";
-            this.ctx.globalAlpha = 1;
+            const w  = this.ctx.canvas.width;
+            const h  = this.ctx.canvas.height;
+            const cx = this.ctx;
+            cx.globalCompositeOperation = "source-over";
+            cx.globalAlpha = 1;
+            cx.clearRect(0, 0, w, h);
+            cx.drawImage(this.canvasGl, 0, 0, w, h);
         }
     }
 
