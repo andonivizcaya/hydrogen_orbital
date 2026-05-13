@@ -732,10 +732,13 @@ int main(void)
 {
     Clay_Raylib_Initialize((int)SCREEN_WIDTH, (int)SCREEN_HEIGHT, "Hydrogen Atom Visualizer", FLAG_BORDERLESS_WINDOWED_MODE | FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE);
 
-    uint64_t totalMemorySize = Clay_MinMemorySize();
-    Clay_Arena arena         = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, MALLOC(totalMemorySize));
+    uint64_t totalMemorySize = (uint64_t)Clay_MinMemorySize() + 8192u;
+    void *clay_mem           = MALLOC((size_t)totalMemorySize);
+    ASSERT(clay_mem != NULL);
+    Clay_Arena arena = Clay_CreateArenaWithCapacityAndMemory((size_t)totalMemorySize, clay_mem);
 
-    Clay_Initialize(arena, (Clay_Dimensions){ SCREEN_WIDTH, SCREEN_HEIGHT }, (Clay_ErrorHandler){ handle_clay_errors, 0 });
+    Clay_Context *clay_ctx = Clay_Initialize(arena, (Clay_Dimensions){ SCREEN_WIDTH, SCREEN_HEIGHT }, (Clay_ErrorHandler){ handle_clay_errors, 0 });
+    ASSERT(clay_ctx != NULL);
     fonts[FONT_ID_BODY_24] = LoadFontEx("resources/fonts/Iosevka-Regular.ttc", 48, 0, 400);
 
     Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
