@@ -110,7 +110,13 @@ static inline Clay_Dimensions Raylib_MeasureText(Clay_StringSlice text, Clay_Tex
             lineCharCount = 0;
             continue;
         }
-        int index = text.chars[i] - 32;
+        int index = (unsigned char)text.chars[i] - 32;
+        if (index < 0 || index >= fontToUse.glyphCount) {
+            const int si = 0;
+            if (fontToUse.glyphs[si].advanceX != 0) lineTextWidth += fontToUse.glyphs[si].advanceX;
+            else lineTextWidth += (fontToUse.recs[si].width + fontToUse.glyphs[si].offsetX);
+            continue;
+        }
         if (fontToUse.glyphs[index].advanceX != 0) lineTextWidth += fontToUse.glyphs[index].advanceX;
         else lineTextWidth += (fontToUse.recs[index].width + fontToUse.glyphs[index].offsetX);
     }

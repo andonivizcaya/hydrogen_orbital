@@ -378,16 +378,19 @@ class HydrolibJs {
         this.canvasGl = document.createElement("canvas");
         this.canvasGl.setAttribute("data-hydrolib", "gl");
         Object.assign(this.canvasGl.style, {
-            position:   "fixed",
-            left:       "0",
-            top:        "0",
-            width:      "1px",
-            height:     "1px",
-            opacity:    "0",
+            position:      "fixed",
+            inset:         "0",
+            width:         "100vw",
+            height:        "100vh",
+            opacity:       "1",
             pointerEvents: "none",
-            zIndex:     "-1",
+            zIndex:        "0",
         });
-        document.body.appendChild(this.canvasGl);
+        if (canvas.parentNode === document.body) {
+            document.body.insertBefore(this.canvasGl, canvas);
+        } else {
+            document.body.appendChild(this.canvasGl);
+        }
 
         this.exports = exports;
 
@@ -878,8 +881,15 @@ class HydrolibJs {
         this.ctx.restore();
     }
 
-    BeginScissorMode(_x, _y, _w, _h) {
-        this.ctx.save();
+    BeginScissorMode(x, y, w, h) {
+        const c = this.ctx;
+        c.save();
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(w) || !Number.isFinite(h))
+            return;
+        if (w <= 0 || h <= 0) return;
+        c.beginPath();
+        c.rect(x, y, w, h);
+        c.clip();
     }
 
     EndScissorMode() {
@@ -1066,8 +1076,7 @@ void main() {
             const w = this.ctx.canvas.width;
             const h = this.ctx.canvas.height;
             this.ctx.save();
-            this.ctx.globalCompositeOperation = "source-over";
-            this.ctx.clearRect(0, 0, w, h);
+            this.ctx.globalCompositeOperation = "copy";
             this.ctx.drawImage(this.canvasGl, 0, 0, w, h);
             this.ctx.restore();
             this.ctx.globalCompositeOperation = "source-over";
