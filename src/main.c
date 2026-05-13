@@ -729,8 +729,12 @@ int main(void)
 {
     Clay_Raylib_Initialize((int)SCREEN_WIDTH, (int)SCREEN_HEIGHT, "Hydrogen Atom Visualizer", FLAG_BORDERLESS_WINDOWED_MODE | FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE);
 
+#if defined(HYDROLIB_WEB)
+    uint64_t totalMemorySize = 32u*1024u*1024u;
+#else
     uint64_t clay_req        = Clay_MinMemorySize();
     uint64_t totalMemorySize = clay_req*4u + 1024u*1024u;
+#endif
     void *clay_mem           = MALLOC((size_t)totalMemorySize);
     ASSERT(clay_mem != NULL);
     Clay_Arena arena = Clay_CreateArenaWithCapacityAndMemory((size_t)totalMemorySize, clay_mem);

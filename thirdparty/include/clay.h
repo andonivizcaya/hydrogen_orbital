@@ -986,6 +986,9 @@ typeName arrayName##_GetValue(arrayName *array, int32_t index) {                
 }                                                                                                               \
                                                                                                                 \
 typeName *arrayName##_Add(arrayName *array, typeName item) {                                                    \
+    if (!array->internalArray) {                                                                               \
+        return &typeName##_DEFAULT;                                                                              \
+    }                                                                                                           \
     if (Clay__Array_AddCapacityCheck(array->length, array->capacity)) {                                         \
         array->internalArray[array->length++] = item;                                                           \
         return &array->internalArray[array->length - 1];                                                        \
