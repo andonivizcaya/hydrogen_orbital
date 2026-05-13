@@ -279,6 +279,9 @@ class HydrolibJs {
     #FONT_SCALE_MAGIC = 0.65;
 
     #reset() {
+        if (this.canvasGl && this.canvasGl.parentNode) {
+            this.canvasGl.parentNode.removeChild(this.canvasGl);
+        }
         this.previous                   = undefined;
         this.exports                    = undefined;
         this.canvas                     = undefined;
@@ -373,6 +376,18 @@ class HydrolibJs {
         }
 
         this.canvasGl = document.createElement("canvas");
+        this.canvasGl.setAttribute("data-hydrolib", "gl");
+        Object.assign(this.canvasGl.style, {
+            position:   "fixed",
+            left:       "0",
+            top:        "0",
+            width:      "1px",
+            height:     "1px",
+            opacity:    "0",
+            pointerEvents: "none",
+            zIndex:     "-1",
+        });
+        document.body.appendChild(this.canvasGl);
 
         this.exports = exports;
 
@@ -434,8 +449,7 @@ class HydrolibJs {
             }
             this.dt = (timestamp - this.previous)/1000.0;
             this.previous = timestamp;
-            const rootCanvas = this.canvasGl || this.canvas;
-            const rect = rootCanvas.getBoundingClientRect();
+            const rect = this.canvas.getBoundingClientRect();
             const cx = this.currentMousePosition.x - rect.left;
             const cy = this.currentMousePosition.y - rect.top;
             if (this._prevMouseCanvas) {
