@@ -22,17 +22,17 @@ function make_environment(env, mathImports = {}) {
 function hydrolibWasmLibm() {
     const M = Math;
     return {
-        cos:    (x) => M.cos(x),
-        sin:    (x) => M.sin(x),
-        tan:    (x) => M.tan(x),
-        cosf:   (x) => M.cos(x),
-        sinf:   (x) => M.sin(x),
+        cos:    (x)    => M.cos(x),
+        sin:    (x)    => M.sin(x),
+        tan:    (x)    => M.tan(x),
+        cosf:   (x)    => M.cos(x),
+        sinf:   (x)    => M.sin(x),
         powf:   (x, y) => M.pow(x, y),
         fmaxf:  (x, y) => M.max(x, y),
         fminf:  (x, y) => M.min(x, y),
         fmax:   (x, y) => M.max(x, y),
         atan2f: (y, x) => M.atan2(y, x),
-        roundf: (x) => M.round(x),
+        roundf: (x)    => M.round(x),
     };
 }
 
@@ -55,6 +55,25 @@ function hydrolibStaticBaseHref() {
     }
     url.pathname = pathname || "/";
     return url.href;
+}
+
+function hydrolibNormalizeAssetPath(rel) {
+    if (!rel || typeof rel !== "string") return rel;
+    return rel.replace(/\\/g, "/").replace(/^\.\//, "");
+}
+
+const HYDROLIB_IOSEVKA_CANONICAL = "resources/fonts/Iosevka-Regular.ttc";
+
+function hydrolibFontBytesFromCache(cache, relFromWasm) {
+    if (!cache) return undefined;
+    const norm = hydrolibNormalizeAssetPath(relFromWasm);
+    let buf = norm ? cache.get(norm) : undefined;
+    if (buf && buf.byteLength) return buf;
+    buf = cache.get(HYDROLIB_IOSEVKA_CANONICAL);
+    if (buf && buf.byteLength) return buf;
+    if (norm && norm.endsWith("Iosevka-Regular.ttc"))
+        buf = cache.get(HYDROLIB_IOSEVKA_CANONICAL);
+    return buf && buf.byteLength ? buf : undefined;
 }
 
 function setU32(buf, ptr, v) {
@@ -98,20 +117,20 @@ function hlReadU32(mem, off) {
 
 function hlMatMultiply(left, right) {
     const result = {};
-    result.m0  = left.m0*right.m0 + left.m1*right.m4 + left.m2*right.m8 + left.m3*right.m12;
-    result.m1  = left.m0*right.m1 + left.m1*right.m5 + left.m2*right.m9 + left.m3*right.m13;
-    result.m2  = left.m0*right.m2 + left.m1*right.m6 + left.m2*right.m10 + left.m3*right.m14;
-    result.m3  = left.m0*right.m3 + left.m1*right.m7 + left.m2*right.m11 + left.m3*right.m15;
-    result.m4  = left.m4*right.m0 + left.m5*right.m4 + left.m6*right.m8 + left.m7*right.m12;
-    result.m5  = left.m4*right.m1 + left.m5*right.m5 + left.m6*right.m9 + left.m7*right.m13;
-    result.m6  = left.m4*right.m2 + left.m5*right.m6 + left.m6*right.m10 + left.m7*right.m14;
-    result.m7  = left.m4*right.m3 + left.m5*right.m7 + left.m6*right.m11 + left.m7*right.m15;
-    result.m8  = left.m8*right.m0 + left.m9*right.m4 + left.m10*right.m8 + left.m11*right.m12;
-    result.m9  = left.m8*right.m1 + left.m9*right.m5 + left.m10*right.m9 + left.m11*right.m13;
-    result.m10 = left.m8*right.m2 + left.m9*right.m6 + left.m10*right.m10 + left.m11*right.m14;
-    result.m11 = left.m8*right.m3 + left.m9*right.m7 + left.m10*right.m11 + left.m11*right.m15;
-    result.m12 = left.m12*right.m0 + left.m13*right.m4 + left.m14*right.m8 + left.m15*right.m12;
-    result.m13 = left.m12*right.m1 + left.m13*right.m5 + left.m14*right.m9 + left.m15*right.m13;
+    result.m0  = left.m0*right.m0  + left.m1*right.m4  + left.m2*right.m8   + left.m3*right.m12;
+    result.m1  = left.m0*right.m1  + left.m1*right.m5  + left.m2*right.m9   + left.m3*right.m13;
+    result.m2  = left.m0*right.m2  + left.m1*right.m6  + left.m2*right.m10  + left.m3*right.m14;
+    result.m3  = left.m0*right.m3  + left.m1*right.m7  + left.m2*right.m11  + left.m3*right.m15;
+    result.m4  = left.m4*right.m0  + left.m5*right.m4  + left.m6*right.m8   + left.m7*right.m12;
+    result.m5  = left.m4*right.m1  + left.m5*right.m5  + left.m6*right.m9   + left.m7*right.m13;
+    result.m6  = left.m4*right.m2  + left.m5*right.m6  + left.m6*right.m10  + left.m7*right.m14;
+    result.m7  = left.m4*right.m3  + left.m5*right.m7  + left.m6*right.m11  + left.m7*right.m15;
+    result.m8  = left.m8*right.m0  + left.m9*right.m4  + left.m10*right.m8  + left.m11*right.m12;
+    result.m9  = left.m8*right.m1  + left.m9*right.m5  + left.m10*right.m9  + left.m11*right.m13;
+    result.m10 = left.m8*right.m2  + left.m9*right.m6  + left.m10*right.m10 + left.m11*right.m14;
+    result.m11 = left.m8*right.m3  + left.m9*right.m7  + left.m10*right.m11 + left.m11*right.m15;
+    result.m12 = left.m12*right.m0 + left.m13*right.m4 + left.m14*right.m8  + left.m15*right.m12;
+    result.m13 = left.m12*right.m1 + left.m13*right.m5 + left.m14*right.m9  + left.m15*right.m13;
     result.m14 = left.m12*right.m2 + left.m13*right.m6 + left.m14*right.m10 + left.m15*right.m14;
     result.m15 = left.m12*right.m3 + left.m13*right.m7 + left.m14*right.m11 + left.m15*right.m15;
     return result;
@@ -215,9 +234,9 @@ function hlMatLookAt(eye, target, up) {
 
 function hlMatToFloat32(mat) {
     return new Float32Array([
-        mat.m0, mat.m1, mat.m2, mat.m3,
-        mat.m4, mat.m5, mat.m6, mat.m7,
-        mat.m8, mat.m9, mat.m10, mat.m11,
+        mat.m0,  mat.m1,  mat.m2,  mat.m3,
+        mat.m4,  mat.m5,  mat.m6,  mat.m7,
+        mat.m8,  mat.m9,  mat.m10, mat.m11,
         mat.m12, mat.m13, mat.m14, mat.m15,
     ]);
 }
@@ -297,7 +316,8 @@ class HydrolibJs {
         this._fontFaceSeq               = 0;
         this._fontFamilyByPtr           = new Map();
         this._scissorStack              = [];
-        this._fontBytesCache           = undefined;
+        this._fontBytesCache            = undefined;
+        this._preloadFontCssFamily      = null;
     }
 
     constructor() {
@@ -306,16 +326,30 @@ class HydrolibJs {
 
     async #preloadFontBytes() {
         this._fontBytesCache = new Map();
-        const canonical = "resources/fonts/Iosevka-Regular.ttc";
+        this._preloadFontCssFamily = null;
         const base      = hydrolibStaticBaseHref();
-        const relTries = [canonical, "fonts/Iosevka-Regular.ttc"];
+        const relTries = [HYDROLIB_IOSEVKA_CANONICAL, "fonts/Iosevka-Regular.ttc"];
         for (const rel of relTries) {
             try {
                 const r = await fetch(new URL(rel, base).href);
                 if (!r.ok) continue;
                 const buf = new Uint8Array(await r.arrayBuffer());
                 if (!buf.byteLength) continue;
-                this._fontBytesCache.set(canonical, buf);
+                const npath = hydrolibNormalizeAssetPath(rel);
+                this._fontBytesCache.set(HYDROLIB_IOSEVKA_CANONICAL, buf);
+                this._fontBytesCache.set(npath, buf);
+
+                try {
+                    const blobUrl = URL.createObjectURL(new Blob([buf]));
+                    const fname   = "HydrogenHydrolibUiFont";
+                    const ff        = new FontFace(fname, `url(${blobUrl})`);
+                    document.fonts.add(ff);
+                    await ff.load();
+                    this._preloadFontCssFamily = fname;
+                    URL.revokeObjectURL(blobUrl);
+                } catch (err) {
+                    console.warn("HYDROLIB->preloadFontBytes: FontFace:", err);
+                }
                 return;
             } catch (_) {}
         }
@@ -325,7 +359,7 @@ class HydrolibJs {
         this.quit = true;
     }
 
-    startExports({ exports, canvasId }) {
+    async startExports({ exports, canvasId }) {
         if (this.exports !== undefined) {
             console.error("The game is already running. Please stop() it first.");
             return;
@@ -378,6 +412,11 @@ class HydrolibJs {
 
         this._disposeListeners = dispose;
 
+        try {
+            if (typeof document !== "undefined" && document.fonts && document.fonts.ready)
+                await document.fonts.ready;
+        } catch (_) {}
+
         this.exports.main();
         const next = (timestamp) => {
             if (this.quit) {
@@ -424,7 +463,7 @@ class HydrolibJs {
         const wasm = await WebAssembly.instantiateStreaming(fetch(wasmHref), {
             env: make_environment(this, hydrolibWasmLibm()),
         });
-        this.startExports({
+        await this.startExports({
             exports: wasm.instance.exports,
             canvasId,
         });
@@ -700,15 +739,18 @@ class HydrolibJs {
         const mem = this.exports.memory.buffer;
         const rel = cstr_by_ptr(mem, fileName_ptr);
         let css   = "monospace";
-        const bytes = this._fontBytesCache && this._fontBytesCache.get(rel);
-        if (bytes && bytes.byteLength > 0) {
+        const bytes = hydrolibFontBytesFromCache(this._fontBytesCache, rel);
+
+        if (bytes && bytes.byteLength > 0 && this._preloadFontCssFamily) {
+            css = this._preloadFontCssFamily;
+        } else if (bytes && bytes.byteLength > 0) {
             try {
                 const blob    = new Blob([bytes]);
                 const blobUrl = URL.createObjectURL(blob);
                 css = `hydrolib_font_${++this._fontFaceSeq}`;
                 const ff = new FontFace(css, `url(${blobUrl})`);
                 document.fonts.add(ff);
-                ff.load().catch(() => {});
+                ff.load().then(() => URL.revokeObjectURL(blobUrl), () => URL.revokeObjectURL(blobUrl));
             } catch (e) {
                 console.warn("HYDROLIB->LoadFontEx:", rel, e);
             }
@@ -721,8 +763,8 @@ class HydrolibJs {
     _hydrolibPrepareFontStruct(fontPtr, baseSize, cssFamily) {
         // bro, I'm about to kill myself :)
         const exp         = this.exports;
-        const glyphsBytes = 95 * GLYPH_STRIDE;
-        const recsBytes   = 95 * 16;
+        const glyphsBytes = 95*GLYPH_STRIDE;
+        const recsBytes   = 95*16;
         const gp          = wasmMalloc(exp, glyphsBytes);
         const rp          = wasmMalloc(exp, recsBytes);
         const mem = exp.memory.buffer;
@@ -739,7 +781,7 @@ class HydrolibJs {
             setI32(mem, g + 8, 0);
             setI32(mem, g + GLYPH_OFF_ADVANCE, adv);
             for (let k = 16; k < GLYPH_STRIDE; k += 4) setI32(mem, g + k, 0);
-            const rec = rp + i * 16;
+            const rec = rp + i*16;
             new Float32Array(mem, rec, 4).set([i*gw*0, 0, gw, baseSize]);
         }
         setI32(mem, fontPtr + FONT_OFF_BASE, baseSize);
@@ -918,28 +960,28 @@ void main() {
     }
 
     #computeMvp(camera_ptr) {
-        const mem = this.exports.memory.buffer;
-        const px = hlReadF32(mem, camera_ptr);
-        const py = hlReadF32(mem, camera_ptr + 4);
-        const pz = hlReadF32(mem, camera_ptr + 8);
-        const tx = hlReadF32(mem, camera_ptr + 12);
-        const ty = hlReadF32(mem, camera_ptr + 16);
-        const tz = hlReadF32(mem, camera_ptr + 20);
-        const ux = hlReadF32(mem, camera_ptr + 24);
-        const uy = hlReadF32(mem, camera_ptr + 28);
-        const uz = hlReadF32(mem, camera_ptr + 32);
-        const fovyDeg = hlReadF32(mem, camera_ptr + 36);
+        const mem        = this.exports.memory.buffer;
+        const px         = hlReadF32(mem, camera_ptr);
+        const py         = hlReadF32(mem, camera_ptr + 4);
+        const pz         = hlReadF32(mem, camera_ptr + 8);
+        const tx         = hlReadF32(mem, camera_ptr + 12);
+        const ty         = hlReadF32(mem, camera_ptr + 16);
+        const tz         = hlReadF32(mem, camera_ptr + 20);
+        const ux         = hlReadF32(mem, camera_ptr + 24);
+        const uy         = hlReadF32(mem, camera_ptr + 28);
+        const uz         = hlReadF32(mem, camera_ptr + 32);
+        const fovyDeg    = hlReadF32(mem, camera_ptr + 36);
         const projection = hlReadI32(mem, camera_ptr + 40);
-        const w = this.canvasGl ? this.canvasGl.width : this.ctx.canvas.width;
-        const h = this.canvasGl ? this.canvasGl.height : this.ctx.canvas.height;
-        const aspect = w / Math.max(h, 1);
-        const view = hlMatLookAt({ x: px, y: py, z: pz }, { x: tx, y: ty, z: tz }, { x: ux, y: uy, z: uz });
+        const w          = this.canvasGl ? this.canvasGl.width : this.ctx.canvas.width;
+        const h          = this.canvasGl ? this.canvasGl.height : this.ctx.canvas.height;
+        const aspect     = w/Math.max(h, 1);
+        const view       = hlMatLookAt({ x: px, y: py, z: pz }, { x: tx, y: ty, z: tz }, { x: ux, y: uy, z: uz });
         let proj;
         if (projection === CAMERA_PERSPECTIVE) {
-            proj = hlMatPerspectiveRad(fovyDeg * Math.PI / 180.0, aspect, CAMERA_NEAR, CAMERA_FAR);
+            proj = hlMatPerspectiveRad(fovyDeg*Math.PI/180.0, aspect, CAMERA_NEAR, CAMERA_FAR);
         } else {
-            const top = fovyDeg / 2.0;
-            const right = top * aspect;
+            const top = fovyDeg/2.0;
+            const right = top*aspect;
             proj = hlMatOrtho(-right, right, -top, top, CAMERA_NEAR, CAMERA_FAR);
         }
         const mvp = hlMatMultiply(view, proj);
@@ -956,12 +998,12 @@ void main() {
         gl.useProgram(this.glProgTri);
         gl.uniformMatrix4fv(this.glLocMvpTri, false, this._mvpArr);
         if (this._batchTri.length > 0) {
-            const n = this._batchTri.length / 7;
+            const n = this._batchTri.length/7;
             gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this._batchTri), gl.STREAM_DRAW);
             gl.drawArrays(gl.TRIANGLES, 0, n);
         }
         if (this._batchLine.length > 0) {
-            const n = this._batchLine.length / 7;
+            const n = this._batchLine.length/7;
             gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this._batchLine), gl.STREAM_DRAW);
             gl.drawArrays(gl.LINES, 0, n);
         }
@@ -969,7 +1011,7 @@ void main() {
             gl.useProgram(this.glProgPt);
             gl.uniformMatrix4fv(this.glLocMvpPt, false, this._mvpArr);
             gl.uniform1f(this.glLocPtSize, 4.0);
-            const n = this._batchPt.length / 7;
+            const n = this._batchPt.length/7;
             gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this._batchPt), gl.STREAM_DRAW);
             gl.drawArrays(gl.POINTS, 0, n);
         }
@@ -1007,20 +1049,22 @@ void main() {
             this.ctx.globalCompositeOperation = "copy";
             this.ctx.drawImage(this.canvasGl, 0, 0, w, h);
             this.ctx.restore();
+            this.ctx.globalCompositeOperation = "source-over";
+            this.ctx.globalAlpha = 1;
         }
     }
 
     DrawModel(_model_ptr, _posX, _posY, _posZ, _scale, _tint_ptr) {}
 
     DrawLine3D(start_ptr, end_ptr, color_ptr) {
-        const b = this.exports.memory.buffer;
-        const s = new Float32Array(b, start_ptr, 3);
-        const e = new Float32Array(b, end_ptr, 3);
+        const b    = this.exports.memory.buffer;
+        const s    = new Float32Array(b, start_ptr, 3);
+        const e    = new Float32Array(b, end_ptr, 3);
         const rgba = new Uint8Array(b, color_ptr, 4);
-        const cr = rgba[0] / 255;
-        const cg = rgba[1] / 255;
-        const cb = rgba[2] / 255;
-        const ca = rgba[3] / 255;
+        const cr   = rgba[0]/255;
+        const cg   = rgba[1]/255;
+        const cb   = rgba[2]/255;
+        const ca   = rgba[3]/255;
         if (this.gl && this._inMode3D) {
             const a = this._batchLine;
             a.push(s[0], s[1], s[2], cr, cg, cb, ca, e[0], e[1], e[2], cr, cg, cb, ca);
@@ -1041,10 +1085,10 @@ void main() {
         const b = this.exports.memory.buffer;
         const p = new Float32Array(b, pos_ptr, 3);
         const rgba = new Uint8Array(b, color_ptr, 4);
-        const cr = rgba[0] / 255;
-        const cg = rgba[1] / 255;
-        const cb = rgba[2] / 255;
-        const ca = rgba[3] / 255;
+        const cr = rgba[0]/255;
+        const cg = rgba[1]/255;
+        const cb = rgba[2]/255;
+        const ca = rgba[3]/255;
         if (this.gl && this._inMode3D) {
             this._batchPt.push(p[0], p[1], p[2], cr, cg, cb, ca);
             return;
@@ -1068,50 +1112,50 @@ void main() {
         const camy = hlReadF32(mem, camera_ptr + 4);
         const camz = hlReadF32(mem, camera_ptr + 8);
 
-        const verts = new Float32Array(mem, vertsPtr, vc * 3);
-        const colors = new Uint8Array(mem, colsPtr, vc * 4);
-        const indices = new Uint16Array(mem, idxPtr, triCount * 3);
+        const verts = new Float32Array(mem, vertsPtr, vc*3);
+        const colors = new Uint8Array(mem, colsPtr, vc*4);
+        const indices = new Uint16Array(mem, idxPtr, triCount*3);
         const tri = this._batchTri;
 
         for (let i = 0; i < triCount; i++) {
-            const i0 = indices[i * 3];
-            const i1 = indices[i * 3 + 1];
-            const i2 = indices[i * 3 + 2];
+            const i0 = indices[i*3];
+            const i1 = indices[i*3 + 1];
+            const i2 = indices[i*3 + 2];
             if (i0 >= vc || i1 >= vc || i2 >= vc) continue;
 
-            const v0x = verts[i0 * 3], v0y = verts[i0 * 3 + 1], v0z = verts[i0 * 3 + 2];
-            const v1x = verts[i1 * 3], v1y = verts[i1 * 3 + 1], v1z = verts[i1 * 3 + 2];
-            const v2x = verts[i2 * 3], v2y = verts[i2 * 3 + 1], v2z = verts[i2 * 3 + 2];
+            const v0x = verts[i0*3], v0y = verts[i0*3 + 1], v0z = verts[i0*3 + 2];
+            const v1x = verts[i1*3], v1y = verts[i1*3 + 1], v1z = verts[i1*3 + 2];
+            const v2x = verts[i2*3], v2y = verts[i2*3 + 1], v2z = verts[i2*3 + 2];
 
             const e1x = v1x - v0x, e1y = v1y - v0y, e1z = v1z - v0z;
             const e2x = v2x - v0x, e2y = v2y - v0y, e2z = v2z - v0z;
-            let nx = e2y * e1z - e2z * e1y;
-            let ny = e2z * e1x - e2x * e1z;
-            let nz = e2x * e1y - e2y * e1x;
-            let nlen = Math.sqrt(nx * nx + ny * ny + nz * nz);
+            let nx = e2y*e1z - e2z*e1y;
+            let ny = e2z*e1x - e2x*e1z;
+            let nz = e2x*e1y - e2y*e1x;
+            let nlen = Math.sqrt(nx*nx + ny*ny + nz*nz);
             if (nlen === 0) continue;
             nx /= nlen;
             ny /= nlen;
             nz /= nlen;
 
-            const cx = (v0x + v1x + v2x) / 3;
-            const cy = (v0y + v1y + v2y) / 3;
-            const cz = (v0z + v1z + v2z) / 3;
+            const cx = (v0x + v1x + v2x)/3;
+            const cy = (v0y + v1y + v2y)/3;
+            const cz = (v0z + v1z + v2z)/3;
             let fx = camx - cx, fy = camy - cy, fz = camz - cz;
-            let flen = Math.sqrt(fx * fx + fy * fy + fz * fz);
+            let flen = Math.sqrt(fx*fx + fy*fy + fz*fz);
             if (flen === 0) continue;
             fx /= flen;
             fy /= flen;
             fz /= flen;
 
-            if (nx * fx + ny * fy + nz * fz <= 0) continue;
+            if (nx*fx + ny*fy + nz*fz <= 0) continue;
 
             const pushV = (vi) => {
-                const j = vi * 3;
-                const k = vi * 4;
+                const j = vi*3;
+                const k = vi*4;
                 tri.push(
                     verts[j], verts[j + 1], verts[j + 2],
-                    colors[k] / 255, colors[k + 1] / 255, colors[k + 2] / 255, colors[k + 3] / 255,
+                    colors[k]/255, colors[k + 1]/255, colors[k + 2]/255, colors[k + 3]/255,
                 );
             };
             pushV(i0);
