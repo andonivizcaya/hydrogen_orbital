@@ -370,7 +370,7 @@ class HydrolibJs {
 
         const canvas = document.getElementById(canvasId);
         this.canvas = canvas;
-        this.ctx = canvas.getContext("2d", { alpha: true, desynchronized: false });
+        this.ctx = canvas.getContext("2d", { alpha: false, desynchronized: false });
         if (this.ctx === null) {
             throw new Error("Could not create 2d canvas context");
         }
@@ -887,15 +887,8 @@ class HydrolibJs {
         this.ctx.restore();
     }
 
-    BeginScissorMode(x, y, w, h) {
-        const c = this.ctx;
-        c.save();
-        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(w) || !Number.isFinite(h))
-            return;
-        if (w <= 0 || h <= 0) return;
-        c.beginPath();
-        c.rect(x, y, w, h);
-        c.clip();
+    BeginScissorMode(_x, _y, _w, _h) {
+        this.ctx.save();
     }
 
     EndScissorMode() {
@@ -1084,8 +1077,10 @@ void main() {
             const cx = this.ctx;
             cx.globalCompositeOperation = "source-over";
             cx.globalAlpha = 1;
-            cx.clearRect(0, 0, w, h);
+            cx.fillStyle = "rgb(18,18,18)";
+            cx.fillRect(0, 0, w, h);
             cx.drawImage(this.canvasGl, 0, 0, w, h);
+            cx.globalCompositeOperation = "source-over";
         }
     }
 

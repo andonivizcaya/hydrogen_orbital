@@ -869,6 +869,10 @@ void UpdateDrawFrame(void)
         needs_regeneration = false;
     }
 
+    Clay_BeginLayout();
+    ui_draw(menu_collapsed, n_label, l_label, m_label);
+    Clay_RenderCommandArray commands = Clay_EndLayout();
+
     BeginDrawing();
     ClearBackground(BACKGROUND);
 
@@ -961,10 +965,6 @@ void UpdateDrawFrame(void)
 
     EndMode3D();
 
-    Clay_BeginLayout();
-
-    ui_draw(menu_collapsed, n_label, l_label, m_label);
-    Clay_RenderCommandArray commands = Clay_EndLayout();
     Clay_Raylib_Render(commands, fonts);
 
     if (!menu_collapsed) {

@@ -21,10 +21,10 @@
 </head>
 <body>
   <canvas id="canvas"></canvas>
-  <script src="./hydrolib.js"></script>
+  <script src="./hydrolib.js?v=20260511-clay-before-gl"></script>
   <script>
     (async () => {
-      await new HydrolibJs().start({ wasmPath: "app.wasm", canvasId: "canvas" });
+      await new HydrolibJs().start({ wasmPath: "app.wasm?v=20260511-clay-before-gl", canvasId: "canvas" });
     })().catch(console.error);
   </script>
 </body>
