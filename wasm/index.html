@@ -14,16 +14,16 @@
       width: 100vw;
       height: 100vh;
       z-index: 1;
-      pointer-events: none;
+      pointer-events: auto;
     }
   </style>
 </head>
 <body>
   <canvas id="canvas"></canvas>
-  <script src="./hydrolib.js?v=20260511-wasm-fallback-clip"></script>
+  <script src="./hydrolib.js?v=20260511-opaque-canvas-noclip"></script>
   <script>
     (async () => {
-      await new HydrolibJs().start({ wasmPath: "app.wasm?v=20260511-wasm-fallback-clip", canvasId: "canvas" });
+      await new HydrolibJs().start({ wasmPath: "app.wasm?v=20260511-opaque-canvas-noclip", canvasId: "canvas" });
     })().catch(console.error);
   </script>
 </body>

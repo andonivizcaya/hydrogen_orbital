@@ -315,7 +315,7 @@ class HydrolibJs {
         this._mouseDelta                = [0, 0];
         this.images                     = [];
         this.quit                       = false;
-        this.traceLogLevel              = LOG_FATAL;
+        this.traceLogLevel              = LOG_WARNING;
         this._fontFaceSeq               = 0;
         this._fontFamilyByPtr           = new Map();
         this._scissorStack              = [];
@@ -370,7 +370,7 @@ class HydrolibJs {
 
         const canvas = document.getElementById(canvasId);
         this.canvas = canvas;
-        this.ctx = canvas.getContext("2d", { alpha: true, desynchronized: false });
+        this.ctx = canvas.getContext("2d", { alpha: false, desynchronized: false });
         if (this.ctx === null) {
             throw new Error("Could not create 2d canvas context");
         }
@@ -899,21 +899,8 @@ class HydrolibJs {
         this.ctx.restore();
     }
 
-    BeginScissorMode(x, y, w, h) {
-        const c = this.ctx;
-        c.save();
-        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(w) || !Number.isFinite(h)) return;
-        if (w <= 0 || h <= 0) return;
-        const xl = Math.floor(x);
-        const yt = Math.floor(y);
-        const xr = Math.ceil(x + w);
-        const yb = Math.ceil(y + h);
-        const cw = xr - xl;
-        const ch = yb - yt;
-        if (cw < 1 || ch < 1) return;
-        c.beginPath();
-        c.rect(xl, yt, cw, ch);
-        c.clip();
+    BeginScissorMode(_x, _y, _w, _h) {
+        this.ctx.save();
     }
 
     EndScissorMode() {
