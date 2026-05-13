@@ -44,7 +44,8 @@ function wasmMalloc(exports, bytes) {
 }
 
 function hydrolibStaticBaseHref() {
-    const url    = new URL(window.location.href);
+    const loc    = typeof document !== "undefined" && document.baseURI ? document.baseURI : window.location.href;
+    const url    = new URL(loc);
     let pathname = url.pathname;
     if (!pathname.endsWith("/")) {
         const lastSegment = pathname.substring(pathname.lastIndexOf("/") + 1);
@@ -333,7 +334,7 @@ class HydrolibJs {
 
         const canvas = document.getElementById(canvasId);
         this.canvas = canvas;
-        this.ctx = canvas.getContext("2d");
+        this.ctx = canvas.getContext("2d", { alpha: true, desynchronized: false });
         if (this.ctx === null) {
             throw new Error("Could not create 2d canvas context");
         }
@@ -484,10 +485,9 @@ class HydrolibJs {
     }
 
     DrawCircleV(center_ptr, radius, color_ptr) {
-        const buffer       = this.exports.memory.buffer;
-        const [x, y]       = new Float32Array(buffer, center_ptr, 2);
-        const [r, g, b, a] = new Uint8Array(buffer, color_ptr, 4);
-        const color        = color_hex_unpacked(r, g, b, a);
+        const buffer = this.exports.memory.buffer;
+        const [x, y] = new Float32Array(buffer, center_ptr, 2);
+        const color  = hydrolibRgbaStyleFromPointer(buffer, color_ptr);
         this.ctx.beginPath();
         this.ctx.arc(x, y, radius, 0, 2*Math.PI, false);
         this.ctx.fillStyle = color;
@@ -510,9 +510,7 @@ class HydrolibJs {
                 gl.clearColor(rf, gf, bf, 1.0);
                 gl.clearDepth(1.0);
                 gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-            } catch (_) {
-                /* WebGL init failed — fall back to 2D fill below */
-            }
+            } catch (_) {}
             this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
             return;
         }
@@ -600,9 +598,12 @@ class HydrolibJs {
     }
 
     GetMousePosition(result_ptr) {
-        const bcrect = this.ctx.canvas.getBoundingClientRect();
-        const x      = this.currentMousePosition.x - bcrect.left;
-        const y      = this.currentMousePosition.y - bcrect.top;
+        const c      = this.ctx.canvas;
+        const bcrect = c.getBoundingClientRect();
+        const rw     = Math.max(1, bcrect.width);
+        const rh     = Math.max(1, bcrect.height);
+        const x      = (this.currentMousePosition.x - bcrect.left)*(c.width/rw);
+        const y      = (this.currentMousePosition.y - bcrect.top)*(c.height/rh);
         const buffer = this.exports.memory.buffer;
         new Float32Array(buffer, result_ptr, 2).set([x, y]);
     }
@@ -818,9 +819,13 @@ class HydrolibJs {
 
     BeginScissorMode(x, y, w, h) {
         this.ctx.save();
-        this.ctx.beginPath();
-        this.ctx.rect(x, y, w, h);
-        this.ctx.clip();
+        const iw = w | 0;
+        const ih = h | 0;
+        if (iw > 0 && ih > 0) {
+            this.ctx.beginPath();
+            this.ctx.rect(x, y, iw, ih);
+            this.ctx.clip();
+        }
     }
 
     EndScissorMode() {
@@ -831,16 +836,20 @@ class HydrolibJs {
         const b              = this.exports.memory.buffer;
         const [x, y, rw, rh] = new Float32Array(b, rec_ptr, 4);
         const col            = getColorFromMemory(b, color_ptr);
-        const r              = Math.min(roundness, rw/2, rh/2);
+        const rr             = Number.isFinite(roundness) ? roundness : 0;
+        const r              = Math.max(0, Math.min(rr, rw/2, rh/2));
         this.ctx.save();
         this.ctx.fillStyle = col;
-        if (typeof this.ctx.roundRect === "function") {
-            this.ctx.beginPath();
-            this.ctx.roundRect(x, y, rw, rh, r);
-            this.ctx.fill();
-        } else {
-            this.ctx.fillRect(x, y, rw, rh);
+        let drew = false;
+        if (typeof this.ctx.roundRect === "function" && r > 0 && rw > 0 && rh > 0) {
+            try {
+                this.ctx.beginPath();
+                this.ctx.roundRect(x, y, rw, rh, r);
+                this.ctx.fill();
+                drew = true;
+            } catch (_) {}
         }
+        if (!drew) this.ctx.fillRect(x, y, rw, rh);
         this.ctx.restore();
     }
 
@@ -1307,23 +1316,11 @@ function cstr_by_ptr(mem_buffer, ptr) {
     return new TextDecoder().decode(bytes);
 }
 
-function color_hex_unpacked(r, g, b, a) {
-    r = r.toString(16).padStart(2, '0');
-    g = g.toString(16).padStart(2, '0');
-    b = b.toString(16).padStart(2, '0');
-    a = a.toString(16).padStart(2, '0');
-    return "#"+r+g+b+a;
-}
-
-function color_hex(color) {
-    const r = ((color>>(0*8))&0xFF).toString(16).padStart(2, '0');
-    const g = ((color>>(1*8))&0xFF).toString(16).padStart(2, '0');
-    const b = ((color>>(2*8))&0xFF).toString(16).padStart(2, '0');
-    const a = ((color>>(3*8))&0xFF).toString(16).padStart(2, '0');
-    return "#"+r+g+b+a;
+function hydrolibRgbaStyleFromPointer(buffer, color_ptr) {
+    const [r, g, b, a] = new Uint8Array(buffer, color_ptr, 4);
+    return `rgba(${r},${g},${b},${a/255})`;
 }
 
 function getColorFromMemory(buffer, color_ptr) {
-    const [r, g, b, a] = new Uint8Array(buffer, color_ptr, 4);
-    return color_hex_unpacked(r, g, b, a);
+    return hydrolibRgbaStyleFromPointer(buffer, color_ptr);
 }

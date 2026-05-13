@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <base href="./" />
   <title>hydrogen</title>
   <link rel="icon" href="data:," />
   <style>
@@ -23,6 +24,9 @@
       z-index: 1;
       pointer-events: none;
       background: transparent;
+      transform: translateZ(0);
+      -webkit-transform: translateZ(0);
+      isolation: isolate;
     }
   </style>
 </head>

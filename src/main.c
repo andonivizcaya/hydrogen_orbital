@@ -741,6 +741,9 @@ int main(void)
 
     Clay_Context *clay_ctx = Clay_Initialize(arena, (Clay_Dimensions){ SCREEN_WIDTH, SCREEN_HEIGHT }, (Clay_ErrorHandler){ handle_clay_errors, 0 });
     ASSERT(clay_ctx != NULL);
+#if defined(HYDROLIB_WEB)
+    Clay_SetCullingEnabled(false);
+#endif
     fonts[FONT_ID_BODY_24] = LoadFontEx("resources/fonts/Iosevka-Regular.ttc", 48, 0, 400);
 
     Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
