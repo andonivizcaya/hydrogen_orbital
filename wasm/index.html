@@ -20,10 +20,10 @@
 </head>
 <body>
   <canvas id="canvas"></canvas>
-  <script src="./hydrolib.js?v=20260511-canvas-css"></script>
+  <script src="./hydrolib.js?v=20260511-wasm-fallback-clip"></script>
   <script>
     (async () => {
-      await new HydrolibJs().start({ wasmPath: "app.wasm?v=20260511-canvas-css", canvasId: "canvas" });
+      await new HydrolibJs().start({ wasmPath: "app.wasm?v=20260511-wasm-fallback-clip", canvasId: "canvas" });
     })().catch(console.error);
   </script>
 </body>

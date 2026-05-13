@@ -477,11 +477,18 @@ class HydrolibJs {
     async start({ wasmPath, canvasId }) {
         await this.#preloadFontBytes();
         const wasmHref = new URL(wasmPath || "app.wasm", hydrolibStaticBaseHref()).href;
-        const wasm = await WebAssembly.instantiateStreaming(fetch(wasmHref), {
-            env: make_environment(this, hydrolibWasmLibm()),
-        });
+        const imports = { env: make_environment(this, hydrolibWasmLibm()) };
+        let instantiated;
+        try {
+            instantiated = await WebAssembly.instantiateStreaming(fetch(wasmHref), imports);
+        } catch (e) {
+            console.warn("HYDROLIB: instantiateStreaming failed, using buffer instantiate:", e?.message || e);
+            const resp = await fetch(wasmHref);
+            if (!resp.ok) throw new Error(`wasm fetch ${resp.status}: ${wasmHref}`);
+            instantiated = await WebAssembly.instantiate(await resp.arrayBuffer(), imports);
+        }
         await this.startExports({
-            exports: wasm.instance.exports,
+            exports: instantiated.instance.exports,
             canvasId,
         });
     }
@@ -530,6 +537,9 @@ class HydrolibJs {
     BeginDrawing() {
         const c = this.ctx;
         if (!c) return;
+        if (typeof c.reset === "function") {
+            c.reset();
+        }
         c.setTransform(1, 0, 0, 1, 0, 0);
         c.globalAlpha = 1;
         c.globalCompositeOperation = "source-over";
@@ -889,8 +899,21 @@ class HydrolibJs {
         this.ctx.restore();
     }
 
-    BeginScissorMode(_x, _y, _w, _h) {
-        this.ctx.save();
+    BeginScissorMode(x, y, w, h) {
+        const c = this.ctx;
+        c.save();
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(w) || !Number.isFinite(h)) return;
+        if (w <= 0 || h <= 0) return;
+        const xl = Math.floor(x);
+        const yt = Math.floor(y);
+        const xr = Math.ceil(x + w);
+        const yb = Math.ceil(y + h);
+        const cw = xr - xl;
+        const ch = yb - yt;
+        if (cw < 1 || ch < 1) return;
+        c.beginPath();
+        c.rect(xl, yt, cw, ch);
+        c.clip();
     }
 
     EndScissorMode() {
