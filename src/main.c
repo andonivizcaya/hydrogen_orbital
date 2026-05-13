@@ -42,9 +42,9 @@ void DrawMeshIndexedWeb(Mesh *mesh, Camera3D *camera);
 
 #define CLAY_IMPLEMENTATION
 #ifdef HYDROLIB_WEB
-#define malloc(sz)       MALLOC((size_t)(sz))
-#define realloc(p, sz)   REALLOC((p), (size_t)(sz))
-#define free(p)          FREE((p))
+#define malloc(sz)     MALLOC((size_t)(sz))
+#define realloc(p, sz) REALLOC((p), (size_t)(sz))
+#define free(p)        FREE((p))
 #endif // HYDROLIB_WEB
 
 #include "clay.h"

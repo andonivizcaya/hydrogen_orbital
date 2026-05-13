@@ -262,15 +262,15 @@ static inline int hydrogen_iabs(int x)
 // forward declaration for the furure
 // for example, changing from doubles to floats
 // who knows...
-size_t factorial(int n)
-size_t doublefactorial(size_t n)
-double laguerre_polynomials(int n, double x)
-double associated_laguerre_polynomials(int n, int l, double x)
-double associated_legendre_function(int m, int l, double x)
-void hydrogen_matrix_compute_min_and_max_values(HydrogenMatrix *a, double min_value, double max_value)
-void hydrogen_matrix_multiplication(HydrogenMatrix *a, HydrogenMatrix *b, HydrogenMatrix *c)
-void hydrogen_matrix_likewise_multiplication(HydrogenMatrix *a, HydrogenMatrix *b, HydrogenMatrix *c)
-void hydrogen_matrix_generate_wave_equation(HydrogenMatrix *spherical_normals, HydrogenMatrix *spherical_harmonics ,HydrogenMatrix *xs, HydrogenMatrix *ys, HydrogenMatrix *zs, size_t vector_size, size_t n, size_t l, int m)
+size_t factorial(int n);
+size_t doublefactorial(size_t n);
+double laguerre_polynomials(int n, double x);
+double associated_laguerre_polynomials(int n, int l, double x);
+double associated_legendre_function(int m, int l, double x);
+void hydrogen_matrix_compute_min_and_max_values(HydrogenMatrix *a, double min_value, double max_value);
+void hydrogen_matrix_multiplication(HydrogenMatrix *a, HydrogenMatrix *b, HydrogenMatrix *c);
+void hydrogen_matrix_likewise_multiplication(HydrogenMatrix *a, HydrogenMatrix *b, HydrogenMatrix *c);
+void hydrogen_matrix_generate_wave_equation(HydrogenMatrix *spherical_normals, HydrogenMatrix *spherical_harmonics ,HydrogenMatrix *xs, HydrogenMatrix *ys, HydrogenMatrix *zs, size_t vector_size, size_t n, size_t l, int m);
 
 #endif // HYDROGEN_H
 
