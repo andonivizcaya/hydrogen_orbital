@@ -769,8 +769,10 @@ class HydrolibJs {
         const out    = new Float32Array(buffer, result_ptr, 2);
         const family = this._hydrolibFontCss(font_ptr);
         const fs     = fontSize * this.#FONT_SCALE_MAGIC;
+        this.ctx.save();
         this.ctx.font = `${fs}px ${family}`;
         const w = this.ctx.measureText(text).width + Math.max(0, (text.length - 1)*spacing);
+        this.ctx.restore();
         out[0] = w;
         out[1] = fontSize;
     }
@@ -782,15 +784,18 @@ class HydrolibJs {
         const tint         = getColorFromMemory(buffer, tint_ptr);
         const family       = this._hydrolibFontCss(font_ptr);
         const fs           = fontSize*this.#FONT_SCALE_MAGIC;
+        this.ctx.save();
+        this.ctx.globalAlpha = 1;
         this.ctx.fillStyle = tint;
         this.ctx.font      = `${fs}px ${family}`;
-        let x              = posX;
+        let x = posX;
         for (let i = 0; i < text.length; i++) {
             const character = text[i];
             if (character === "\n") continue;
             this.ctx.fillText(character, x, posY + fs);
             x += this.ctx.measureText(character).width + spacing;
         }
+        this.ctx.restore();
     }
 
     DrawTexturePro(texture_ptr, source_rec_ptr, dest_rec_ptr, origin_ptr, rotation, tint_ptr) {
@@ -811,15 +816,8 @@ class HydrolibJs {
         this.ctx.restore();
     }
 
-    BeginScissorMode(x, y, w, h) {
+    BeginScissorMode(_x, _y, _w, _h) {
         this.ctx.save();
-        const iw = w | 0;
-        const ih = h | 0;
-        if (iw > 0 && ih > 0) {
-            this.ctx.beginPath();
-            this.ctx.rect(x, y, iw, ih);
-            this.ctx.clip();
-        }
     }
 
     EndScissorMode() {
