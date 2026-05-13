@@ -1605,7 +1605,11 @@ Clay__MeasureTextCacheItem *Clay__MeasureTextCached(Clay_String *text, Clay_Text
     }
     #endif
     uint32_t id = Clay__HashStringContentsWithConfig(text, config);
-    uint32_t hashBucket = id % (context->maxMeasureTextCacheWordCount / 32);
+    uint32_t measureHashBuckets = (uint32_t)(context->maxMeasureTextCacheWordCount / 32);
+    if (measureHashBuckets == 0) {
+        measureHashBuckets = 1; // voodoo related with 32 moding to 0 and bum (wasm32 shit)
+    }
+    uint32_t hashBucket = id % measureHashBuckets;
     int32_t elementIndexPrevious = 0;
     int32_t elementIndex = context->measureTextHashMap.internalArray[hashBucket];
     while (elementIndex != 0) {
